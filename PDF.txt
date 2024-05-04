@@ -1,0 +1,155 @@
+function saveFullPageScreenshot(n=0) {
+  let url = savePdf(n);
+  console.log(url)
+  // APIキー、フォルダID、URLを変数として記載
+  var apiKey = 'f80b6e78f0504867b02c02cec49c8fcc'; // apiflashから取得したアクセスキー
+
+  var apiUrl = 'https://api.apiflash.com/v1/urltoimage'
+    + '?access_key=' + apiKey
+    + '&url=' + encodeURIComponent(url)
+    + '&full_page=true' // full_pageパラメータをtrueに設定してフルページのスクリーンショットを取得
+    + '&fresh=true';
+
+  try {
+    var response = UrlFetchApp.fetch(apiUrl);
+    if (response.getResponseCode() == 200) {
+      var blob = response.getBlob();
+      const object = {
+        blob: blob,
+        unit: "pixel",
+        crop: { t: 100, b: 230, l: 620, r: 620 },
+        outputWidth: 1000,
+      };
+      for(var i = 0; i< 5;i++){
+        try{
+          //ImgAppを使用し、上:100px、下:100px、左:400px、右:400pxをトリミング。幅を500pxに設定。
+          var blob = ImgApp.editImage(object);
+        }catch (e) {
+          console.log("例外発生")
+        }
+      }
+
+
+      // スプレットシート"メモリ"を参照
+      var sheet1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4").getSheetByName("メモリ");
+      var values = sheet1.getRange(2, 3, 3, 2).getValues();
+      for(var i = 0; i < 3; i++){
+        if(parseInt(values[i][1]) == n){
+          var fileId = values[i][0]
+          let resource = {
+            uploadType: "media",
+          }
+          Drive.Files.update(resource, fileId, blob);
+        }
+      }
+      
+      Logger.log('Screenshot saved');
+    } else {
+      Logger.log('Failed to get screenshot: ' + response.getContentText());
+    }
+  } catch (e) {
+    Logger.log('Error: ' + e.toString());
+  }
+  return blob
+}
+
+function savePdf(n=0){
+  let folder_pdf = DriveApp.getFolderById('1fxEjiEnO2mAKEkdV7XxziHwVfHUx0JCd')
+  deleteAllFilesInFolder(folder_pdf);
+  //PDFの保存先
+  //★★★フォルダーIDを入力してください★★★
+  let folderId = "1fxEjiEnO2mAKEkdV7XxziHwVfHUx0JCd";
+
+  //アクティブなスプレッドシートを取得する
+  let ss = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+
+  //スプレッドシートIDを取得する
+  let ssId = ss.getId();
+
+  //シートIDを取得する
+  let shId = ss.getSheetByName(String(n)+"週間後のシフト表").getSheetId();
+
+  //★★★PDFのファイル名を入力してください★★★
+  //※ポイント: ファイル名が重複しないようにしましょう
+  let fileName = "test"; 
+  
+  //関数createPdfを実行し、PDFを作成して保存する
+  let pdfurl = createPdf(folderId, ssId, shId, fileName);
+  return pdfurl;
+}
+
+
+//PDFを作成し指定したフォルダーに保存する関数
+//以下4つの引数を指定する必要がある
+//1: フォルダーID (folderId)
+//2: スプレッドシートID (ssId)
+//3: シートID (shId)
+//4: ファイル名 (fileName)
+function createPdf(folderId, ssId, shId, fileName){
+  //PDFを作成するためのベースとなるURL
+  let baseUrl = "https://docs.google.com/spreadsheets/d/"
+          +  ssId
+          + "/export?gid="
+          + shId;
+ 
+  //★★★自由にカスタマイズしてください★★★
+  //PDFのオプションを指定
+  let pdfOptions = "&exportFormat=pdf&format=pdf"
+              + "&size=A4" //用紙サイズ (A4)
+              + "&portrait=true"  //用紙の向き true: 縦向き / false: 横向き
+              + "&fitw=true"  //ページ幅を用紙にフィットさせるか true: フィットさせる / false: 原寸大
+              + "&top_margin=0.50" //上の余白
+              + "&right_margin=0.50" //右の余白
+              + "&bottom_margin=0.50" //下の余白
+              + "&left_margin=0.50" //左の余白
+              + "&horizontal_alignment=CENTER" //水平方向の位置
+              + "&vertical_alignment=TOP" //垂直方向の位置
+              + "&printtitle=false" //スプレッドシート名の表示有無
+              + "&sheetnames=false" //シート名の表示有無
+              + "&gridlines=false" //グリッドラインの表示有無
+              + "&fzr=false" //固定行の表示有無
+              + "&fzc=false"; //固定列の表示有無
+
+  //PDFを作成するためのURL
+  let url = baseUrl + pdfOptions;
+
+  //アクセストークンを取得する
+  let token = ScriptApp.getOAuthToken();
+
+  //headersにアクセストークンを格納する
+  let options = {
+    headers: {
+        'Authorization': 'Bearer ' +  token
+    }
+  };
+ 
+  //PDFを作成する
+  let blob = UrlFetchApp.fetch(url, options).getBlob().setName(fileName + '.pdf');
+
+  // blob = convertPdfToPng(blob)
+  // const pngBlob = blob.getAs('image/png');
+
+  //PDFの保存先フォルダー
+  //フォルダーIDは引数のfolderIdを使用します
+  let folder = DriveApp.getFolderById(folderId);
+
+  //PDFを指定したフォルダに保存する
+  folder.createFile(blob);
+
+    // 保存先フォルダから PDF ファイルを取得
+  let files = folder.getFilesByName(fileName + '.pdf');
+
+  // PDF ファイルが存在するかチェック
+  if (files.hasNext()) {
+    // PDF ファイルが見つかった場合、その URL を取得
+    let pdfFile = files.next();
+    let pdfUrl = pdfFile.getUrl();
+    var index = pdfUrl.indexOf("?");
+    pdfUrl = pdfUrl.substring(0, index);
+    console.log(pdfUrl)
+    return pdfUrl;
+  } else {
+    // PDF ファイルが見つからなかった場合、エラーメッセージを出力
+    return "PDF file not found";
+  }
+}

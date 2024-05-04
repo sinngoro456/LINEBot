@@ -1,0 +1,472 @@
+function getShiftedMonth(today, shiftDay) {
+  let shiftedDate = new Date(today);
+  shiftedDate.setDate(shiftedDate.getDate() + shiftDay);
+  let month = shiftedDate.getMonth() + 1; // 月は0から始まるため1を加算
+  return String(month);
+}
+
+function getShiftedDay(today, shiftDay) {
+  let shiftedDate = new Date(today);
+  shiftedDate.setDate(shiftedDate.getDate() + shiftDay);
+  let day = shiftedDate.getDate();
+  return String(day);
+}
+
+// 配列をランダムにシャッフルする関数
+function shuffleArray(array) {
+  for (var i = array.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = array[i];
+    array[i] = array[j];
+    array[j] = temp;
+  }
+}
+
+//　行列の行を入れ替え
+function swapColumns(matrix, col1, col2) {
+for (var i = 0; i < matrix.length; i++) {
+  var temp = matrix[i][col1];
+  matrix[i][col1] = matrix[i][col2];
+  matrix[i][col2] = temp;
+}
+}
+
+//namesをランダムにシャッフルし、kibouを対応するように入れ替える関数
+function kawashuffle(names, kibou, shift_in_count) {
+  for (var i = names.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp1 = names[i];
+    names[i] = names[j];
+    names[j] = temp1;
+    temp1 = shift_in_count[i];
+    shift_in_count[i] = shift_in_count[j];
+    shift_in_count[j] = temp1;
+    swapColumns(kibou, i, j)
+  }
+}
+
+
+
+function kawa_shift_in_count_sort(names, kibou, shift_in_count) {
+  function sort1(a, b){
+    if (shift_in_count[a] < shift_in_count[b]) {
+      return 1;
+    } else if(shift_in_count[a] > shift_in_count[b]){
+      return -1;
+    } else {
+      return 0;
+    }
+  };
+
+  // 行番号を保持する配列を作成
+  var rowIndices = [];
+  for (var i = 0; i < shift_in_count.length; i++) {
+    rowIndices.push(i);
+  }
+
+  // shift_in_countの値に従って行番号をソート
+  rowIndices.sort(sort1);
+
+  // ソートされた行番号を使用してnamesとkibouをソート
+  var sortedNames = [];
+  var sortedKibou = [];
+  var sortedshift_in_count = [];
+  
+  for (var i = 0; i < shift_in_count.length; i++) {
+    var index = rowIndices[i];
+    sortedNames.push(names[index]);
+    sortedshift_in_count.push(shift_in_count[index]);
+  }
+
+  for (var i = 0; i < sortedshift_in_count.length; i++) {
+    var index = rowIndices[i];
+    var kibouRow = []; // 各行ごとのkibouの要素を格納する配列
+    for (var j = 0; j < 24; j++) {
+      kibouRow.push(kibou[j][index]); // kibouの行を取得してkibouRowに追加
+    }
+    sortedKibou.push(kibouRow); // kibouRowをsortedKibouに追加
+  }
+
+  /* ① 行・列を入れ替える転置関数 */
+  sortedKibou = transpose(sortedKibou)
+  
+  names = sortedNames
+  kibou = sortedKibou
+  shift_in_count = sortedshift_in_count
+
+  return {
+    names: names,
+    kibou: kibou,
+    shift_in_count: shift_in_count
+  };
+}
+
+//unit(6~9時、9~13時などのunitを生成)
+function kawaunit(i_unit, starttimelist) {
+  var unit = [];
+  var i = 0
+  while( starttimelist[i_unit] + i < 24 ) {
+    if (starttimelist.includes(starttimelist[i_unit] + i) && i > 0) {
+      break;
+    }
+    unit.push(starttimelist[i_unit] + i);
+    i++;
+  }
+  return unit
+}
+
+//unitの長さを測定
+function kawaunit_length(i_unit,starttimelist){
+  var i = 0
+  while( starttimelist[i_unit] + i < 24 ) {
+    if (starttimelist.includes(starttimelist[i_unit] + i) && i > 0) {
+      break;
+    }
+    i++;
+  }
+  return i
+}
+
+//その人がその日希望を出しているかunitを守っているか判定(neet:出していない(state = 0)　typical:守って出している(state = 1)　distinct:守らずに出している(state = 2))
+function kawacheck_person(starttimelist, kibou) {
+  var state = 0 // 0:neet 1:typical 2: distinct
+  var prekibou
+  for (var time = 0; time < 24; time++) {
+    // その人の1時間前の希望をprekibouに　time == 0のときは処理をスキップしたいのでprekibou = kibou[0]
+    if (time == 0) {
+      prekibou = kibou[0]
+    }
+    else {
+      prekibou = kibou[time - 1]
+    }
+    // 0以外が1つ以上あればその人はtypicalかdistinct(3)
+    if (kibou[time] > 0) {
+      state = 3
+    }
+    // 0とそれ以外の変わり目がunitの区切り目と合うかを調べることでtypicalかdistinctiveかを判定
+    if ((prekibou > 0 && kibou[time] == 0) || (prekibou == 0 && kibou[time] > 0)) {
+      if (!starttimelist.includes(time)) {
+        // 0とそれ以外の変わり目がunitの区切り目と合っていない
+        state = 2
+        var j = 0
+        for (var i_unit = 0; i_unit < starttimelist.length; i_unit++) {
+          for (var i = 0; i < kawaunit_length(i_unit, starttimelist); i++) {
+            if (kibou[starttimelist[i_unit] + i] == 0) {
+              break
+            }
+            if (i == kawaunit_length(i_unit, starttimelist) - 1) {
+              // unit範囲をカバーしつつ余計に希望を出していると判明。typicalと判定し余計な希望を0にする。
+              state = 1
+              for (var i_unit = 0; i_unit < starttimelist.length; i_unit++) {
+                for (var i = 0; i < kawaunit_length(i_unit, starttimelist); i++) {
+                  // unit範囲外の希望を0に
+                  if (kibou[starttimelist[i_unit]+i] == 0) {
+                    for (var j = 0; j < kawaunit_length(i_unit, starttimelist); j++) {
+                      kibou[starttimelist[i_unit]+j] = 0
+                    }
+                    break
+                  }
+                }
+              }
+              break
+            }
+            j = j + 1
+          }
+          if (state == 1) {
+            break
+          }
+        }
+        if (state == 2) {
+          break
+        }
+      }
+    }
+  }
+  // typicalかdistinct(state = 3)でdistinctではなかったのでtypical
+  if (state == 3){
+    state = 1
+  }
+  return state
+}
+
+//その日希望を出しているかunitを守っているか判定(neet:出していない　typical:守って出している　distinct:守らずに出している)。typical_namesとdistinctive_namesのリストを作成。
+function kawacheck(starttimelist, names, typical_names, distinctive_names, kibou) {
+  var hiskibou = transpose(kibou)
+  for (var person = 0; person < names.length; person++) {
+    var state = kawacheck_person(starttimelist, hiskibou[person])
+    if(state == 1){
+      typical_names.push(names[person])
+    }
+    else if(state == 2){
+      distinctive_names.push(names[person])
+    }
+  }
+}
+
+//kusu
+function kawacheck_hozon(starttimelist, names, typical_names, distinctive_names, kibou) {
+  for (var person = 0; person < names.length; person++) {
+    var state = 0 // 0:neet 1:typical 2: distinct
+    var prekibou
+    for (var time = 0; time < 24; time++) {
+      // その人の1時間前の希望をprekibouに　time == 0のときは処理をスキップしたいのでprekibou = kibou[0][person]
+      if (time == 0) {
+        prekibou = kibou[0][person]
+      }
+      else {
+        prekibou = kibou[time - 1][person]
+      }
+      // 0以外が1つ以上あればその人はtypicalかdistinct(3)
+      if (kibou[time][person] > 0) {
+        state = 3
+      }
+      // 0とそれ以外の変わり目がunitの区切り目と合うかを調べることでtypicalかdistinctiveかを判定
+      if ((prekibou > 0 && kibou[time][person] == 0) || (prekibou == 0 && kibou[time][person] > 0)) {
+        if (!starttimelist.includes(time)) {
+          // 0とそれ以外の変わり目がunitの区切り目と合っていない
+          state = 2
+          var j = 0
+          for (var i_unit = 0; i_unit < starttimelist.length; i_unit++) {
+            for (var i = 0; i < kawaunit_length(i_unit, starttimelist); i++) {
+              if (kibou[starttimelist[i_unit] + i][person] == 0) {
+                break
+              }
+              if (i == kawaunit_length(i_unit, starttimelist) - 1) {
+                // unit範囲をカバーしつつ余計に希望を出していると判明。typicalと判定し余計な希望を0にする。
+                state = 1
+                for (var i_unit = 0; i_unit < starttimelist.length; i_unit++) {
+                  for (var i = 0; i < kawaunit_length(i_unit, starttimelist); i++) {
+                    // unit範囲外の希望を0に
+                    if (kibou[starttimelist[i_unit]+i][person] == 0) {
+                      for (var j = 0; j < kawaunit_length(i_unit, starttimelist); j++) {
+                        kibou[starttimelist[i_unit]+j][person] = 0
+                      }
+                      break
+                    }
+                  }
+                }
+                break
+              }
+              j = j + 1
+            }
+            if (state == 1) {
+              break
+            }
+          }
+          if (state == 2) {
+            distinctive_names.push(names[person])
+            break
+          }
+        }
+      }
+    }
+    // typicalかdistinct(3)でdistinctではなかったのでtypical
+    if ([1,3].includes(state)) {
+      typical_names.push(names[person])
+    }
+  }
+}
+
+// typical_namesとdistinctive_namesのリストに対応する希望表を作成
+function kawa_remake_kiboulist(names, typical_names, distinctive_names, kibou) {
+  var typical_kibou = [];
+  var distinctive_kibou = [];
+  for (var i = 0; i < 24; i++) {
+    typical_kibou.push([]);
+  }
+  for (var i = 0; i < 24; i++) {
+    distinctive_kibou.push([]);
+  }
+
+  // typical_kibouの処理
+  for (var i = 0; i < typical_names.length; i++) {
+    for (var j = names.length - 1; j >= 0; j--) {
+      if (typical_names[i] === names[j]) {
+        for (let k = 0; k < 24; k++) {
+          typical_kibou[k].push(kibou[k][j])
+        }
+      }
+    }
+  }
+  
+  // distinctive_kibouの処理
+  for (var i =  0; i < distinctive_names.length; i++) {
+    for (var j = names.length - 1; j >= 0; j--) {
+      if (distinctive_names[i] === names[j]) {
+        for (let k = 0; k < 24; k++) {
+          distinctive_kibou[k].push(kibou[k][j]);
+        }
+      }
+    }
+  }
+  
+  return {
+    typical_kibou: typical_kibou,
+    distinctive_kibou: distinctive_kibou
+  };
+}
+
+// ループ回数を減らすため始業時間ごとに希望を出しているtypicalメンバーをリスト(typical_timelist)に(縦:i_unit,横:人)
+function kawa_makecheck_namelist(typical_names, starttimelist, typical_kibou) {
+  var typical_nametimelist = [];
+  for (var i = 0; i < starttimelist.length; i++) {
+    typical_nametimelist.push([]);
+  }
+  for (var i = 0; i < starttimelist.length;i++){
+    for (var j = 0; j < typical_names.length;j++){
+      if (typical_kibou[starttimelist[i]][j] > 0) {
+        typical_nametimelist[i].push(typical_names[j])
+      }
+    }
+  }
+  return typical_nametimelist
+}
+
+// 上に対応する希望表を作成
+function kawa_makecheck_kiboulist(typical_names,typical_kibou, starttimelist, typical_nametimelist) {
+  var typical_nametime_kibou = [];
+  for (var i = 0; i < starttimelist.length; i++) {
+    typical_nametime_kibou.push([]);
+  }
+  for (var i = 0; i < starttimelist.length;i++){
+    for (var j = 0; j < typical_nametimelist.length; j++){
+      for (var k = 0; k < typical_names.length;k++){
+        if (typical_nametimelist[i][j] == typical_names[k]) {
+          typical_nametime_kibou[i].push(typical_kibou[starttimelist[i]][k])
+          break
+        }
+      }
+    }
+  }
+  return typical_nametime_kibou
+}
+
+// 特定のユニットでの残り必要な人数をカウント
+function kawa_emptyshift_count(shift, i_unit,starttimelist,N_min_shift) {
+  var count = 0
+  if ( shift[i_unit].length<=N_min_shift) {
+    count = N_min_shift-shift[starttimelist[i_unit]].length
+  }
+  return count
+}
+
+// 特定のユニットで希望がj_min~j_maxの範囲内にあるnamesのリストを作成
+function kawa_j_minmax_names(i_unit, j_min, j_max, typical_nametime_kibou, typical_nametimelist) {
+  temp = []
+  if (typical_nametimelist[i_unit]) {
+    for (var i = 0; i < typical_nametime_kibou[i_unit].length;i++){
+      if (j_min <= typical_nametime_kibou[i_unit] <= j_max) {
+        temp.push(typical_nametimelist[i_unit][i])
+      }
+    }
+  }
+  return temp
+}
+
+// 特定のユニットで希望がj_min~j_maxの範囲内にある人数をカウント
+function kawa_shiftcount(j_min, j_max, i_unit, typical_nametime_kibou,typical_nametimelist) {
+  count=0
+  if (typical_nametimelist[i_unit]){
+    for (var i = 0; i < typical_nametimelist[i_unit].length;i++){
+      if (j_min <= typical_nametime_kibou[i_unit][i] <= j_max) {
+          count++
+      }
+    }
+  }
+  return count
+}
+
+// typicalメンバーのシフトを決定
+function kawa_shiftmake(shift, starttimelist, typical_nametime_kibou, N_max_kibou,N_min_shift, typical_nametimelist) {
+  for (var j_max = N_max_kibou; j_max >= 0;j_max--){
+    for (var j_min = 0; j_min <= j_max; j_min++){
+      for (var i_unit = 0; i_unit < starttimelist.length;i_unit++){
+        if (kawa_shiftcount(j_min, j_max, i_unit, typical_nametime_kibou,typical_nametimelist) <= kawa_emptyshift_count(shift, i_unit,starttimelist,N_min_shift)) {
+          templist = kawa_j_minmax_names(i_unit, j_min, j_max, typical_nametime_kibou, typical_nametimelist)
+          if (templist.length > kawa_emptyshift_count(shift, i_unit,starttimelist,N_min_shift)) {
+            templist = templist.slice(0, kawa_emptyshift_count(shift, i_unit,starttimelist,N_min_shift));
+          }
+        
+          for (var i = 0; i < kawaunit_length(i_unit, starttimelist); i++) {
+            for (var j = 0; j < templist.length; j++) {
+              shift[starttimelist[i_unit] + i].push(templist[j])
+            }
+          }
+
+          // typical_nametime_kibouに書き換え
+          for (var i = 0; i < templist.length; i++) {
+            for (var j = 0; j < typical_nametimelist[i_unit].length; j++) {
+              if (templist[i] == typical_nametimelist[i_unit][j]) {
+                temp_name = typical_nametimelist[i_unit][j]
+                var index = typical_nametimelist[i_unit].indexOf(temp_name);
+                if (index !== -1) {
+                  typical_nametimelist[i_unit].splice(index, 1);
+                  typical_nametime_kibou[i_unit].splice(index, 1);
+                }
+                for (var k = 0; k < starttimelist.length;k++){
+                  if (i_unit <= k-2 || k+2 <= i_unit) {
+                    var index = typical_nametimelist[k].indexOf(temp_name);
+                    if (index !== -1) {
+                      typical_nametimelist[k].splice(index, 1);
+                      typical_nametime_kibou[k].splice(index, 1);
+                    }
+                  }
+                }
+                break
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// distinctメンバーのシフトを決定
+function kawa_shiftmake_distinct(shift, starttimelist_distinctive,distinctive_nametime_kibou, N_max_kibou,N_min_shift,  distinctive_namestimelist,N_max_shift) {
+  if (N_min_shift<N_max_shift){
+    N_shift = N_min_shift + 1
+  }
+  for (var j_max = N_max_kibou; j_max >= 0;j_max--){
+    for (var j_min = 0; j_min <= j_max; j_min++){
+      for (var i_unit = 0; i_unit < starttimelist_distinctive.length;i_unit++){
+        
+        if (kawa_shiftcount(j_min, j_max, i_unit, distinctive_nametime_kibou,distinctive_namestimelist) <= kawa_emptyshift_count(shift, i_unit,starttimelist_distinctive,N_shift)) {
+          templist = kawa_j_minmax_names(i_unit, j_min, j_max, distinctive_nametime_kibou, distinctive_namestimelist)
+
+          if (templist.length > kawa_emptyshift_count(shift, i_unit,starttimelist_distinctive,N_shift)) {
+            templist = templist.slice(0, kawa_emptyshift_count(shift, i_unit,starttimelist_distinctive,N_shift));
+          }
+        
+          for (var j = 0; j < templist.length; j++) {
+            shift[i_unit].push(templist[j])
+          }
+
+          // distinctive_nametime_kibouに書き換え
+          for (var i = 0; i < templist.length; i++) {
+            for (var j = 0; j < distinctive_namestimelist[i_unit].length; j++) {
+              if (templist[i] == distinctive_namestimelist[i_unit][j]) {
+                temp_name = distinctive_namestimelist[i_unit][j]
+                var index = distinctive_namestimelist[i_unit].indexOf(temp_name);
+                if (index !== -1) {
+                  distinctive_namestimelist[i_unit].splice(index, 1);
+                  distinctive_nametime_kibou[i_unit].splice(index, 1);
+                }
+                for (var k = 0; k < starttimelist_distinctive.length;k++){
+                  if (i_unit <= k-2 || k+2 <= i_unit) {
+                    var index = distinctive_namestimelist[k].indexOf(temp_name);
+                    if (index !== -1) {
+                      distinctive_namestimelist[k].splice(index, 1);
+                      distinctive_nametime_kibou[k].splice(index, 1);
+                    }
+                  }
+                }
+                break
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

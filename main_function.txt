@@ -1,0 +1,1275 @@
+//文字返答を作成
+function LINETextMake(replyToken,text) {
+  var payload = {
+  'replyToken': replyToken,
+  'messages': [{
+      'type': 'text',
+      'text': text
+    }]
+  };
+  return payload
+}
+
+//文字返答を出力
+function LINEOutput(token,url,payload) {
+  var options = {
+    'payload' : JSON.stringify(payload),
+    'myamethod'  : 'POST',
+    'headers' : {"Authorization" : "Bearer " + token},
+    'contentType' : 'application/json'
+  };
+  UrlFetchApp.fetch(url, options);
+}
+
+//userIdからUserNameを取得
+function getUserName(userId,token) {
+  const url = "https://api.line.me/v2/bot/profile/" + userId;
+  const response = UrlFetchApp.fetch(url, {
+              "headers" : {
+              "Authorization" : "Bearer " + token
+              }
+  });
+  return JSON.parse(response.getContentText()).displayName;
+}
+
+//トリガーが起動した際に今の週と希望表の週を比較し週の差だけ新しいシフト表で上書き。最新週のLINE版は固定シフトをコピー。
+function SheetUpdate(N_week_shift = 5) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+
+  // スプレットシート"メモリ"のシフト〇週間後を書き換え
+  var sheet1 = s1.getSheetByName("メモリ");
+  var values = sheet1.getRange(2, 4, 3, 1).getValues();
+  sheet1.getRange(2, 4, 3, 1).setValues(shiftRight(values));
+
+  var n = 0
+  var dateString = s1.getSheetByName(String(n)+"週間後の希望(LINE)").getRange("B2").getValue(); // 例えば"A1"は日付が格納されているセルの場所です
+  // 文字列を日付オブジェクトに変換
+  var date = new Date(dateString);
+  // 今日の日付を取得
+  var today = new Date();
+  var weeksDifference = calculateWeekDifference(date,today);
+  
+  // 結果を出力
+  Logger.log("スプレッドシートの日付と今日の日付の間の週数: " + String(weeksDifference))
+  for (var i = 0; i < weeksDifference; i++){
+    for (var n = 0; n< N_week_shift; n++){
+      var newsheet1 = s1.getSheetByName(String(n+1)+"週間後の希望(LINE)");
+      var newsheet2 = s1.getSheetByName(String(n+1)+"週間後の希望(画像認識)");
+      var newsheet3 = s1.getSheetByName(String(n+1)+"週間後のシフト表");
+      var oldsheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+      var oldsheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+      var oldsheet3 = s1.getSheetByName(String(n)+"週間後のシフト表");
+      
+      //コピー対象のセル範囲を選択する
+      let copyRange1 = newsheet1.getRange(1, 1, 200, 110);
+      let copyRange2 = newsheet2.getRange(1, 1, 200, 110);
+      let copyRange3 = newsheet3.getRange(1, 1, 40, 40);
+      //貼り付け先のセル範囲を選択する
+      let pasteRange1 = oldsheet1.getRange(1, 1, 200, 110);
+      let pasteRange2 = oldsheet2.getRange(1, 1, 200, 110);
+      let pasteRange3 = oldsheet3.getRange(1, 1, 40, 40);
+      //コピー対象のセル範囲のデータを貼り付け先のセルにコピーする
+      //オプション指定で書式についてはコピー対象から除外する
+      copyRange1.copyTo(pasteRange1);
+      copyRange2.copyTo(pasteRange2);
+      copyRange3.copyTo(pasteRange3);
+
+      for(var i_date = 0;i_date<7;i_date++){
+
+        s1.getSheetByName(String(n)+"週間後の希望(LINE)").getRange(2+i_date*26, 2, 1, 1).setValue(extractDateAndMonth(new Date(today.getTime() + ((1+i_date-today.getDay()+7*n) * 24 * 60 * 60 * 1000))))
+        s1.getSheetByName(String(n)+"週間後の希望(画像認識)").getRange(2+i_date*26, 2, 1, 1).setValue(extractDateAndMonth(new Date(today.getTime() + ((1+i_date-today.getDay()+7*n) * 24 * 60 * 60 * 1000))))
+      }
+    }
+
+    //3週間後の希望表初期化
+    var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+    n = N_week_shift;
+    var sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+    var sheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+    var sheet3 = s1.getSheetByName(String(n)+"週間後のシフト表");
+    var sheet4 = s1.getSheetByName("固定シフト");
+
+    sheet3.getRange(1, 1, 40, 40).breakApart();
+    sheet3.getRange(1, 1, 40, 40).clear();
+
+    //コピー対象のセル範囲を選択する
+    let copyRange1 = sheet4.getRange(1, 1, 200, 110);
+    //貼り付け先のセル範囲を選択する
+    let pasteRange1 = sheet1.getRange(1, 1, 200, 110);
+    let pasteRange2 = sheet2.getRange(1, 1, 200, 110);
+    //コピー対象のセル範囲のデータを貼り付け先のセルにコピーする
+    //オプション指定で書式についてはコピー対象から除外する
+    copyRange1.copyTo(pasteRange1);
+    copyRange1.copyTo(pasteRange2);
+    for (var i_date = 0; i_date < 7; i_date++){
+      sheet2.getRange(3+i_date*26, 3, 24, 120).clear();
+    }
+
+    for (var i_date = 0; i_date < 7; i_date++){
+      sheet1.getRange(2+i_date*26, 2, 1, 1).setValue(extractDateAndMonth(new Date(today.getTime() + ((1+i_date-today.getDay()+7*n) * 24 * 60 * 60 * 1000))))
+      sheet2.getRange(2+i_date*26, 2, 1, 1).setValue(extractDateAndMonth(new Date(today.getTime() + ((1+i_date-today.getDay()+7*n) * 24 * 60 * 60 * 1000))))
+    }
+  }
+}
+
+function LINEShiftMake(replyToken,n=2,starttimelist = [6,9,13,17,20,23], N_max_shift = 3, N_min_shift = 2, N_max_kibou = 6) {
+  var compensation = starttimelist[0] //最初のシフトが0時からどれだけずれているか
+  for (var i = 0; i < starttimelist.length; i++){
+    starttimelist[i] = starttimelist[i] - compensation
+  }
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+  var sheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+  var sheet3 = s1.getSheetByName(String(n)+"週間後のシフト表");
+  
+  //sheet3初期化
+  sheet3clear(sheet1,sheet3)
+  
+  first = true
+  for(var i_date = 0;i_date<7;i_date++){
+    //nameとkibouをvaluesにまとめて格納
+    var values = sheet1.getRange(2+i_date*26, 3, 1, 100).getValues();
+    //シフトの希望表の名前のみをnamesに格納
+    var names = values[0].filter(function(cellValue) {
+        return cellValue !== '';
+    });
+
+    var values = sheet1.getRange(3+i_date*26, 3, 24, names.length).getValues();
+    var values_sub = sheet2.getRange(3+i_date*26, 3, 24, names.length).getValues();
+    for (var i = 0; i < 24; i++){
+      for (var j = 0; j < names.length; j++){
+        if (!values[i][j]){
+          values[i][j] = values_sub[i][j]
+        }
+      }
+    }
+    //シフトの希望表の数字のみをkibouに格納(縦:時間、横:名前)
+    var kibou = values.map(function(row) {
+      return row.map(function(cellValue) {
+          return cellValue === '' ? 0 : cellValue;
+      });
+    });
+      
+    var typical_names = []
+    var distinctive_names = []
+    var shift = []
+    for (var i = 0; i < 24; i++) {
+      shift.push([]);
+    }
+    //shift_in_countはkawa_shiftmakeで同じ希望順位の人がいる場合誰を優先するかを決める。(kawashuffleで右側から優先順にnameをソートするように)。
+    //初期値を高い値に設定し、週に1以上のシフトを獲得したものからその初期値を剥奪することでその週で一度もシフトを持っていないものを優先。
+    //nameの順に対応しており高いほど優先される。
+    var shift_in_count = []
+    if(first == true){
+      for (var i = 0; i < names.length; i++) {
+        shift_in_count.push(1000);
+      }
+      first = false
+    }
+
+    for (var i_name = 0; i_name < names.length; i_name++) {
+      for(var i_time = 0; i_time < 24; i_time++){
+        if (kibou[i_time][i_name]>0){
+          shift_in_count[i_name] = Number(shift_in_count[i_name]) + Number(kibou[i_time][i_name])
+        }
+      }
+    }
+    
+    //希望表をシャッフルして希望が多い順にソート
+    kawashuffle(names, kibou, shift_in_count)
+    let result = kawa_shift_in_count_sort(names, kibou, shift_in_count) 
+    names = result.names,
+    kibou = result.kibou,
+    shift_in_count = result.shift_in_count
+
+    //typical(6~9など、8~10のようでない)か判定、結果ごとにリストを作成
+    kawacheck(starttimelist, names, typical_names, distinctive_names, kibou)
+    result = kawa_remake_kiboulist(names, typical_names, distinctive_names, kibou);
+    var typical_namestimelist = kawa_makecheck_namelist(typical_names, starttimelist, result.typical_kibou)
+    var typical_nametime_kibou = kawa_makecheck_kiboulist(typical_names, result.typical_kibou, starttimelist, typical_namestimelist)
+    starttimelist_distinctive = []
+    for(var i = 0;i<24;i++){
+      starttimelist_distinctive.push(i)
+    }
+    var distinctive_namestimelist = kawa_makecheck_namelist(distinctive_names, starttimelist_distinctive, result.distinctive_kibou)
+    var distinctive_nametime_kibou = kawa_makecheck_kiboulist(distinctive_names, result.distinctive_kibou, starttimelist_distinctive, distinctive_namestimelist)
+
+
+    //typicalメンバーでシフト表を作成した後、distinctiveメンバーを追加
+    kawa_shiftmake(shift, starttimelist, typical_nametime_kibou, N_max_kibou,N_min_shift, typical_namestimelist)
+    kawa_shiftmake_distinct(shift, starttimelist_distinctive, distinctive_nametime_kibou, N_max_kibou,N_min_shift,  distinctive_namestimelist,N_max_shift)
+
+    //採用したシフトの希望をshift_in_countから差し引く
+    for(var i = 0;i<shift.length;i++){
+      for(var j = 0;j<shift[i].length;j++){
+        for(var i_name = 0;i_name<names.length;i_name++){
+          if(shift[i][j] == names[i_name]){
+            shift_in_count[i_name] = Number(shift_in_count[i_name]) - Number(kibou[i][i_name])
+            break
+          }
+        }
+      }
+    }
+    swapRowsWithSameElementInFirstColumn(shift,N_max_shift);
+    for (var i = 0; i < N_max_shift; i++) {
+      for (var j = 0; j < 24; j++) {
+        sheet3.getRange(2+i+i_date*5, 2+j).setValue(shift[j][i]);
+      }
+    }
+    // シート2で指定した範囲の隣り合うセルが同じ値の場合に結合します。
+    combinecells(sheet3,2+i_date*5, 2, N_max_shift, 24, i_date)
+  }
+
+  var blob = saveFullPageScreenshot(n);
+
+
+
+
+
+  // //file作成用コード
+  // var folder = DriveApp.getFolderById(folderId);
+  // var file = folder.createFile(blob);
+  // var fileUrl = file.getDownloadUrl()
+  // console.log(file.getId())
+  // payload = {
+  // 'replyToken': replyToken,
+  // 'messages': [{
+  //     type: 'image',
+  //     originalContentUrl: fileUrl, 
+  //     previewImageUrl: fileUrl
+  //   }]
+  // };
+
+
+  // file上書き用コード
+  // スプレットシート"メモリ"のシフト〇週間後を書き換え
+  var sheet1 = s1.getSheetByName("メモリ");
+  var values = sheet1.getRange(2, 3, 3, 2).getValues();
+  var payload = LINETextMake(replyToken,"エラー1")
+  for(var i = 0; i < 3; i++){
+    if(parseInt(values[i][1]) == n){
+      var fileId = values[i][0]
+      let resource = {
+        uploadType: "media",
+      }
+      Drive.Files.update(resource, fileId, blob);
+      var file = DriveApp.getFileById(fileId);
+      var fileUrl = file.getDownloadUrl();
+      var payload = {
+      'replyToken': replyToken,
+      'messages': [{
+          type: 'image',
+          originalContentUrl: fileUrl, 
+          previewImageUrl: fileUrl
+        }]
+      };
+    }
+  }
+
+  return payload
+}
+
+function LINEShiftCheck(replyToken) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("メモリ");
+  var value = sheet1.getRange(2, 4, 1, 1).getValue();
+  var fileId = ["18rduSziWIdMKzG4_unGkXxRQvwMQAcVr","1ooURpBtmvE00vIIxh0wFUEJqd8AApA44","1sVYbhUlUTyrUYvqtQLdHHNgUViagac9z"]
+  for(let i = 0; i < parseInt(value); i++){
+    fileId = shiftRight(fileId)
+  }
+  var fileUrl1 = DriveApp.getFileById(fileId[0]).getDownloadUrl()
+  var fileUrl2 = DriveApp.getFileById(fileId[1]).getDownloadUrl()
+  var fileUrl3 = DriveApp.getFileById(fileId[2]).getDownloadUrl()
+  payload = {
+    'replyToken': replyToken,
+    'messages': [
+      {
+        type: 'image',
+        originalContentUrl: fileUrl1, 
+        previewImageUrl: fileUrl1
+      },
+      {
+        type: 'image',
+        originalContentUrl: fileUrl2, 
+        previewImageUrl: fileUrl2
+      },
+      {
+        type: 'image',
+        originalContentUrl: fileUrl3, 
+        previewImageUrl: fileUrl3
+      }
+    ]
+  };
+  
+  return payload
+}
+
+
+function LINEShiftiInput(today = new Date(),weekInt = new Date().getDay(),n = 1,starttimelist = [6,9,13,17,20,23],userId = "Ue131547efbe0eff33303465451f24244",userName = "A",N_week_kibou = 5) {
+  let dates = [
+      `${getShiftedMonth(today, - weekInt+1+7*n) + "/" + getShiftedDay(today, - weekInt+1+7*n)}`,
+      `${getShiftedMonth(today, - weekInt+2+7*n) + "/" + getShiftedDay(today, - weekInt+2+7*n)}`,
+      `${getShiftedMonth(today, - weekInt+3+7*n) + "/" + getShiftedDay(today, - weekInt+3+7*n)}`,
+      `${getShiftedMonth(today, - weekInt+4+7*n) + "/" + getShiftedDay(today, - weekInt+4+7*n)}`,
+      `${getShiftedMonth(today, - weekInt+5+7*n) + "/" + getShiftedDay(today, - weekInt+5+7*n)}`,
+      `${getShiftedMonth(today, - weekInt+6+7*n) + "/" + getShiftedDay(today, - weekInt+6+7*n)}`,
+      `${getShiftedMonth(today, - weekInt+7+7*n) + "/" + getShiftedDay(today, - weekInt+7+7*n)}`];
+
+  let days = [
+      `月曜`,
+      `火曜`,
+      `水曜`,
+      `木曜`,
+      `金曜`,
+      `土曜`,
+      `日曜`];
+
+  var actions = SelectShift(dates,userId,userName,N_week_kibou);
+  var columns = []
+
+  for (let i = 0; i < 7; i++) {
+    let day = days[i] + ":" + dates[i];
+    let column = {
+      "title": day,
+      "text": "description",
+      "defaultAction": {
+        "type": "uri",
+        "label": "View detail",
+        "uri": "http://example.com/page/222"
+      },
+      "actions": actions[i]
+    };
+    columns.push(column);
+  }
+  console.log(columns)
+  return columns
+}
+
+function LINEKoteiShiftiInput(userId = "Ue131547efbe0eff33303465451f24244", userName,N_week_kibou) {
+  let days = [
+      `月曜`,
+      `火曜`,
+      `水曜`,
+      `木曜`,
+      `金曜`,
+      `土曜`,
+      `日曜`];
+
+  var actions = SelectKoteiShift(days,userId,userName,N_week_kibou);
+  var columns = []
+
+  for (let i = 0; i < 7; i++) {
+    let day = "固定シフト:" + days[i];
+    let column = {
+      "title": day,
+      "text": "description",
+      "defaultAction": {
+        "type": "uri",
+        "label": "View detail",
+        "uri": "http://example.com/page/222"
+      },
+      "actions": actions[i]
+    };
+    columns.push(column);
+  }
+  console.log(columns)
+  return columns
+}
+
+function InputTimeSpreadsheet(userId="Ue131547efbe0eff33303465451f24244",userName,replyToken,InputTimeArray = [ '17~23', '20~23', '×' ]) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("固定シフト");
+
+  //nameとkibouをvaluesにまとめて格納
+  var id_list_temp = sheet1.getRange(1, 3, 1, 100).getValues();
+  var id_list = removeTrailingWhitespace(id_list_temp[0])
+  var frag = true;
+  for (var i_id = 0; i_id < id_list.length; i_id++){
+    if (id_list[i_id] == userId){
+      frag = false;
+      break
+    }
+  }
+  if (frag){
+    i_id = MakeNewName(userId, userName,N_week_kibou,"");
+  }
+
+  let text = "時間帯登録を受け付けました。ただし、登録できるのは３つまでです。";
+
+  let length = 3
+  if(length >= InputTimeArray.length){
+    length = InputTimeArray.length
+    text = "時間帯登録を受け付けました。";
+  }
+  for(var i = 0; i< length; i++){
+    sheet1.getRange(184+i, 3+i_id, 1, 1).setValue(InputTimeArray[i]);
+  }
+
+  var payload = {
+    'replyToken': replyToken,
+    'messages': [{
+        'type': 'text',
+        'text': text
+    }]
+  };
+  return payload
+}
+
+function SelectShift(dates = "",userId = "Ue131547efbe0eff33303465451f24244",userName,N_week_kibou) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("固定シフト");
+
+  //nameとkibouをvaluesにまとめて格納
+  var id_list_temp = sheet1.getRange(1, 3, 1, 100).getValues();
+  var id_list = removeTrailingWhitespace(id_list_temp[0])
+  var frag = true;
+  for (var i_id = 0; i_id < id_list.length; i_id++){
+    if (id_list[i_id] == userId){
+      frag = false;
+      break
+    }
+  }
+  if (frag){
+    i_id = MakeNewName(userId, userName,N_week_kibou,"");
+  }
+
+
+  let select = sheet1.getRange(184, 3+i_id, 3, 1).getValues();
+  let list = ["×","9~13","13~17"]
+  let count = 0;
+  let temp = []
+  let actions = []
+  for(var i = 0;i < 3; i++){
+    if(select[i][0] == ""){
+      temp.push(list[count]);
+      count = count + 1;
+    }
+    else{
+      temp.push(select[i][0]);
+    }
+  }
+  console.log(temp)
+  for (let i = 0; i < 7; i++) {
+    var action = []
+    for(let j = 0; j < 3; j++){
+      var button = {
+        "type": "message",
+        "label": temp[j],
+        "text": dates[i] + ":" + temp[j],
+      }
+      action.push(button);
+    }
+    actions.push(action);
+  }
+  console.log(actions)
+  return actions
+}
+
+function SelectKoteiShift(days,userId,userName,N_week_kibou) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("固定シフト");
+
+  //nameとkibouをvaluesにまとめて格納
+  var id_list_temp = sheet1.getRange(1, 3, 1, 100).getValues();
+  var id_list = removeTrailingWhitespace(id_list_temp[0])
+  var frag = true;
+  for (var i_id = 0; i_id < id_list.length; i_id++){
+    if (id_list[i_id] == userId){
+      frag = false;
+      break
+    }
+  }
+  if (frag){
+    i_id = MakeNewName(userId, userName,N_week_kibou,"");
+  }
+
+  let select = sheet1.getRange(184, 3+i_id, 3, 1).getValues();
+  let list = ["×","9~13","13~17"]
+  let count = 0;
+  let temp = []
+  let actions = []
+  for(var i = 0;i < 3; i++){
+    if(select[i][0] == ""){
+      temp.push(list[count]);
+      count = count + 1;
+    }
+    else{
+      temp.push(select[i][0]);
+    }
+  }
+  console.log(temp)
+  for (let i = 0; i < 7; i++) {
+    var action = []
+    for(let j = 0; j < 3; j++){
+      var button = {
+        "type": "message",
+        "label": temp[j],
+        "text": days[i] + ":" + temp[j],
+      }
+      action.push(button);
+    }
+    actions.push(action);
+  }
+  return actions
+}
+
+function MakeNewName(userId, userName,N_week_kibou=0,name = "") {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("固定シフト");
+  if(name !== ""){
+    console.log(name)
+    //nameとkibouをvaluesにまとめて格納
+    var values = sheet1.getRange(1, 3, 2, 100).getValues();
+    for (var i_id = 0; i_id< 100; i_id++){
+      if (!values[0][i_id]){
+        if (!values[1][i_id]){
+          break
+        }
+      }
+    }
+
+    for (var n = 0; n< N_week_kibou+1; n++){
+      var sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+      var sheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+      var sheet4 = s1.getSheetByName("固定シフト");
+      for (var j = 0; j< 7; j++){
+        sheet1.getRange(2 + 26*j, 3+i_id).setValue(name);
+        sheet2.getRange(2 + 26*j, 3+i_id).setValue(name);
+        sheet4.getRange(2 + 26*j, 3+i_id).setValue(name);
+      }
+    }
+  }else{
+    //nameとkibouをvaluesにまとめて格納
+    var values = sheet1.getRange(1, 3, 2, 100).getValues();
+    for (var i_id = 0; i_id< 100; i_id++){
+      if (!values[0][i_id]){
+        if (!values[1][i_id]){
+          break
+        }
+      }
+    }
+
+    for (var n = 0; n< N_week_kibou+1; n++){
+      var sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+      var sheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+      var sheet4 = s1.getSheetByName("固定シフト");
+      sheet1.getRange(1, 3+i_id).setValue(userId);
+      sheet2.getRange(1, 3+i_id).setValue(userId);
+      sheet4.getRange(1, 3+i_id).setValue(userId);
+      for (var j = 0; j< 7; j++){
+        sheet1.getRange(2 + 26*j, 3+i_id).setValue(userName);
+        sheet2.getRange(2 + 26*j, 3+i_id).setValue(userName);
+        sheet4.getRange(2 + 26*j, 3+i_id).setValue(userName);
+      }
+    }
+  }
+  return i_id
+}
+
+//退会したユーザーのIDを消す
+function DeleteName(replyToken = "",namelist = ['川渕', 'あ'],N_week_kibou = 5) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet4 = s1.getSheetByName("固定シフト");
+  //namelistとkibouをvaluesにまとめて格納
+  for(var i = 0; i < namelist.length;i++){
+    var values = sheet4.getRange(2, 3, 1, 100).getValues();
+    var i_id = 0
+    for (i_id = 0; i_id< 101; i_id++){
+      if (values[0][i_id] == namelist[i]){
+        break
+      }
+    }
+    if(namelist[i] !== "" && i_id !== 100){
+      var n = 0;
+      var sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+      var sheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+      sheet4 = s1.getSheetByName("固定シフト");
+      var values1 = sheet1.getRange(1, 3, 200, 100).getValues();
+      var values2 = sheet2.getRange(1, 3, 200, 100).getValues();
+      values = sheet4.getRange(1, 3, 200, 100).getValues();
+      values1 = deleteColumn(values1, i_id);
+      values2 = deleteColumn(values2, i_id);
+      values = deleteColumn(values, i_id);
+      sheet1.getRange(1, 3, 200, 100).setValues(values1);
+      sheet2.getRange(1, 3, 200, 100).setValues(values2);
+      sheet4.getRange(1, 3, 200, 100).setValues(values);
+      for (var n = 0; n< N_week_kibou+1; n++){
+        sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+        sheet2 = s1.getSheetByName(String(n)+"週間後の希望(画像認識)");
+        values1 = sheet1.getRange(1, 3, 200, 100).getValues();
+        values2 = sheet2.getRange(1, 3, 200, 100).getValues();
+        values1 = deleteColumn(values1, i_id);
+        values2 = deleteColumn(values2, i_id);
+        sheet1.getRange(1, 3, 200, 100).setValues(values1);
+        sheet2.getRange(1, 3, 200, 100).setValues(values2);
+      }
+      var payload = LINETextMake(replyToken,values[0][i_id]+"およびそのシフト希望を登録リストから削除しました。")
+    }else{
+      var text = ""
+      for(let j = 0; j < values[0].length; j++){
+        if(values[0][j]){
+          if(values[0][j] !== ""){
+            text = text + values[0][j] + "\n"
+          }
+        }
+      }
+      var payload = LINETextMake(replyToken,"登録されていない名前の人物が指定されました。この命令の実行以前に登録されている名前は次のようです。\n"+text)
+    }
+  }
+  return payload
+}
+
+//LINEのトークルームに入力されたシフト希望をスプレットシートに代入
+function InputSpreadsheet(userId = "Ue131547efbe0eff33303465451f24244",userName,n = 1,replyToken,i_date = 0,InputArray = [4,8,"〇"],starttimelist = [6,9,13,17,20,23],N_max_kibou = 1,N_week_kibou = 5,name = "川渕",sheet_name = "(LINE)") {
+  var Month = InputArray[0]
+  var Day = InputArray[1]
+  var StartHour = InputArray[2]
+  if(InputArray.length == 4){
+    var EndHour = InputArray[3]
+  }
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName(String(n)+"週間後の希望"+sheet_name);
+
+  if(name !== ""){
+    //nameとkibouをvaluesにまとめて格納
+    var id_list_temp = sheet1.getRange(2, 3, 1, 100).getValues();
+    var id_list = removeTrailingWhitespace(id_list_temp[0])
+    var frag = true;
+    for (var i_id = 0; i_id < id_list.length; i_id++){
+      if (id_list[i_id] == name){
+        frag = false;
+        break
+      }
+    }
+    if(frag){
+      i_id = MakeNewName(userId, userName,N_week_kibou,name);
+    }
+  }
+  
+  else{
+    //nameとkibouをvaluesにまとめて格納
+    var id_list_temp = sheet1.getRange(1, 3, 1, 100).getValues();
+    var id_list = removeTrailingWhitespace(id_list_temp[0])
+    var frag = true;
+    for (var i_id = 0; i_id < id_list.length; i_id++){
+      if (id_list[i_id] == userId){
+        frag = false;
+        break
+      }
+    }
+    if (frag){
+      i_id = MakeNewName(userId, userName,N_week_kibou,"");
+    }
+  }
+
+  if(StartHour == "×"){
+    for (let i = 0; i < 24; i++){
+      sheet1.getRange(3+i_date*26+i, 3+i_id, 1, 1).setValue("0");
+    }
+    var payload = {
+      'replyToken': replyToken,
+      'messages': [{
+          'type': 'text',
+          'text': String(Month) + "月" + String(Day) + "日" + "のシフトの削除希望を受け付けました。"
+      }]
+    };
+  }
+  else if(StartHour == "〇"){
+    var sheet1 = s1.getSheetByName("固定シフト");
+    let values = sheet1.getRange(184, 3+i_id, 3, 1).getValues();
+    let regex = /(\d+)/g; // 数字を抽出する正規表現パターン
+    var i_StartHour = 100;
+    var i_EndHour = -1;
+    for(let j = 0;j < 3;j++){
+      let numbers = values[j][0].match(regex)
+      if(!numbers){
+        continue
+      }
+      else if (numbers.length !== 2) {
+        continue
+      }
+      var temp_StartHour = parseInt(numbers[0]) - starttimelist[0];
+      var temp_EndHour = parseInt(numbers[1]) - starttimelist[0];
+      if(temp_StartHour<0){
+        temp_StartHour = temp_StartHour + 24
+      }
+      if(temp_EndHour<0){
+        temp_EndHour = temp_EndHour + 24
+      }
+      if(i_StartHour>temp_StartHour){
+        i_StartHour = temp_StartHour;
+      }
+      if(i_EndHour<temp_EndHour){
+        i_EndHour = temp_EndHour;
+      }
+    }
+    
+    if(i_StartHour>i_EndHour){
+      var payload = {
+        'replyToken': replyToken,
+        'messages': [{
+            'type': 'text',
+            'text': "時間帯登録が適切ではありません。「時間帯登録:6~9,9~13,×」のように6時をまたがないような時間帯を3個以下で指定してください。"
+        }]
+      };
+      return payload
+    }
+    sheet1 = s1.getSheetByName(String(n)+"週間後の希望"+sheet_name);
+    for (let k = i_StartHour; k < i_EndHour; k++){
+      console.log("a",k,i_date)
+      sheet1.getRange(3+i_date*26+k, 3+i_id, 1, 1).setValue(N_max_kibou);
+    }
+    var payload = {
+      'replyToken': replyToken,
+      'messages': [{
+          'type': 'text',
+          'text': String(Month) + "月" + String(Day) + "日" + "のシフトの削除希望を受け付けました。"
+      }]
+    };
+  }
+  else{
+    var i_StartHour = parseInt(StartHour) - starttimelist[0];
+    var i_EndHour = parseInt(EndHour) - starttimelist[0];
+    if(i_StartHour<0){
+      i_StartHour = i_StartHour + 24
+    }
+    if(i_EndHour<0){
+      i_EndHour = i_EndHour + 24
+    }
+    if(i_StartHour>i_EndHour){
+      var payload = {
+        'replyToken': replyToken,
+        'messages': [{
+            'type': 'text',
+            'text': "6時をまたぐような入力は受け付けません。"
+        }]
+      };
+      return payload
+    }
+    for (let i = i_StartHour; i < i_EndHour; i++){
+      sheet1.getRange(3+i_date*26+i, 3+i_id, 1, 1).setValue(N_max_kibou);
+    }
+    var payload = {
+      'replyToken': replyToken,
+      'messages': [{
+          'type': 'text',
+          'text': String(Month) + "月" + String(Day) + "日" + String(StartHour) + "時~" + String(EndHour) + "時のシフトの希望を受け付けました。"
+      }]
+    };
+  }
+
+  return payload
+}
+
+
+//LINEのトークルームに入力されたシフト希望をスプレットシートに代入
+function InputKoteiShiftSpreadsheet(userId = "Ue131547efbe0eff33303465451f24244",userName,replyToken,InputArray = [0,"×"],starttimelist = [6,9,13,17,20,23],N_max_kibou = 1) {
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("固定シフト");
+
+  //nameとkibouをvaluesにまとめて格納
+  var id_list_temp = sheet1.getRange(1, 3, 1, 100).getValues();
+  var id_list = removeTrailingWhitespace(id_list_temp[0])
+  var frag = true;
+  for (var i_id = 0; i_id < id_list.length; i_id++){
+    if (id_list[i_id] == userId){
+      frag = false;
+      break
+    }
+  }
+  if (frag){
+    i_id = MakeNewName(userId, userName,N_week_kibou,"");
+  }
+
+  if(InputArray.length == 3){
+    var i_StartHour = parseInt(InputArray[1]) - starttimelist[0];
+    var i_EndHour = parseInt(InputArray[2]) - starttimelist[0];
+    if(i_StartHour<0){
+      i_StartHour = i_StartHour + 24
+    }
+    if(i_EndHour<0){
+      i_EndHour = i_EndHour + 24
+    }
+    if(i_StartHour>i_EndHour){
+      var payload = {
+        'replyToken': replyToken,
+        'messages': [{
+            'type': 'text',
+            'text': "6時をまたぐような入力は受け付けません。"
+        }]
+      };
+      return payload
+    }
+    for (let i = i_StartHour; i < i_EndHour; i++){
+      sheet1.getRange(3+parseInt(InputArray[0])*26+i, 3+i_id, 1, 1).setValue(N_max_kibou);
+    }
+    var payload = {
+      'replyToken': replyToken,
+      'messages': [{
+          'type': 'text',
+          'text': "固定シフトの入力を受け付けました。"
+      }]
+    };
+  }
+  if(InputArray.length == 2){
+    for (let i = 0; i < 24; i++){
+      sheet1.getRange(3+parseInt(InputArray[0])*26+i, 3+i_id, 1, 1).setValue("");
+    }
+    var payload = {
+      'replyToken': replyToken,
+      'messages': [{
+          'type': 'text',
+          'text': "固定シフトの入力を受け付けました。"
+      }]
+    };
+  }
+
+
+  return payload
+}
+
+function LINEShiftkibouCheck(userId = "Ue131547efbe0eff33303465451f24244",userName,replyToken,starttimelist = [6,9,13,17,20,23],today = new Date(),weekInt = new Date().getDay(),N_week_shift,N_week_kibou){
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("固定シフト");
+  //nameとkibouをvaluesにまとめて格納
+  var id_list_temp = sheet1.getRange(1, 3, 1, 100).getValues();
+  var id_list = removeTrailingWhitespace(id_list_temp[0])
+  var frag = true;
+  for (var i_id = 0; i_id < id_list.length; i_id++){
+    if (id_list[i_id] == userId){
+      frag = false;
+      break
+    }
+  }
+  if (frag){
+    i_id = MakeNewName(userId, userName,N_week_kibou,"");
+  }
+
+  let days = [
+      `月曜`,
+      `火曜`,
+      `水曜`,
+      `木曜`,
+      `金曜`,
+      `土曜`,
+      `日曜`];
+
+  var compensation = starttimelist[0] //最初のシフトが0時からどれだけずれているか
+  for (var i = 0; i < starttimelist.length; i++){
+    starttimelist[i] = starttimelist[i] - compensation
+  }
+
+
+  var text = ""
+
+  for ( var n = N_week_shift-1; n < N_week_kibou+1; n++){
+    text = text + "(" + String(n) + "週間後)\n"
+    var sheet1 = s1.getSheetByName(String(n)+"週間後の希望(LINE)");
+    var values = sheet1.getRange(3, 3+i_id, 190, 1).getValues();
+    for(var i_date = 0;i_date<7;i_date++){
+      text = text + `${getShiftedMonth(today, - weekInt+1+i_date+7*n) + "/" + getShiftedDay(today, - weekInt+1+i_date+7*n)}` + "(" + String(days[i_date]) + "):"
+      var frag = false;
+      for(let i_time = 0; i_time < 24; i_time++){
+        if(!frag && values[26*i_date + i_time] > 0){
+          text = text + String(i_time + compensation) + "~"
+          frag = true
+        }
+        else if(frag && values[26*i_date + i_time] == 0){
+          text = text + String(i_time + compensation) + ","
+          frag = false
+        }
+        if(frag && i_time == 23){
+          text = text + String(compensation)
+        }
+      }
+      text = text + "\n"
+    } 
+  }
+
+  var payload = {
+    'replyToken': replyToken,
+    'messages': [{
+        'type': 'text',
+        'text': text
+    }]
+  };
+
+  return payload
+}
+
+function extractStrings(inputString = "None〇") {
+    const patterns = ["None", ".", "〇", "×", "6-9", "9-13", "13-17", "6-13", "9-17", "6-17", "17-20", "20-23", "17-23", "23-6", "20-6", "23-2", "20-2"];
+    const extractedStrings = [];
+
+    for (let pattern of patterns) {
+        if (inputString.includes(pattern)) {
+            extractedStrings.push(pattern);
+        }
+    }
+    console.log(extractedStrings)
+    return extractedStrings;
+}
+
+
+// シフト希望表の画像認識
+function ImageRecognition(id,token,userId = "Ue131547efbe0eff33303465451f24244",userName,replyToken,starttimelist = [6,9,13,17,20,23],N_max_kibou = 1,N_week_kibou = 5){
+//   // var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+//   // var sheet1 = s1.getSheetByName("メモリ");
+//   // let startIndex1 = Number(PropertiesService.getScriptProperties().getProperty('nextIndex1'));
+//   // console.log(startIndex1)
+//   // startIndex1 = startIndex1 + 1;
+//   // console.log("b")
+  
+//   // console.log(startIndex1)
+//   // sheet1.getRange(1,19,1,1).setValue("Start" + String(startIndex1));
+
+//   // if(startIndex1>=4){
+//   //   console.log("c")
+//   //   let triggers = ScriptApp.getScriptTriggers();
+//   //   for(let trigger of triggers){
+//   //     if(trigger.getHandlerFunction() == 'ImageRecognition'){
+//   //       ScriptApp.deleteTrigger(trigger);
+//   //     }
+//   //   }
+//   //   // 終わったらスクリプトプロパティを削除
+//   //   PropertiesService.getScriptProperties().deleteProperty('nextIndex1');  
+//   //   return;
+//   // }
+//   // sheet1.getRange(1,20,1,1).setValue(String(startIndex1));
+//   // PropertiesService.getScriptProperties().setProperty('nextIndex1', startIndex1);
+//   // setTrigger();
+//   // return;
+
+
+  // let triggers = ScriptApp.getScriptTriggers();
+  // for(let trigger of triggers){
+  //   if(trigger.getHandlerFunction() == 'ImageRecognition'){
+  //     ScriptApp.deleteTrigger(trigger);
+  //   }
+  // }
+  // PropertiesService.getScriptProperties().deleteProperty('nextIndex1');  
+  // PropertiesService.getScriptProperties().deleteProperty('nextIndex2'); 
+  var n = 2;
+  var s1 = SpreadsheetApp.openById("1MN8Tjp5VY7nAeIz2dOYGfqpt97I2uWkdQ-cGng0M8x4");
+  var sheet1 = s1.getSheetByName("メモリ");
+  const srcFolder = DriveApp.getFolderById('1EWGqOxfVg0sJfu1ADIa_drdVQVU7fkcw')
+  const destFolder = DriveApp.getFolderById('1FII1rp9ySKlbST23g4mpXn6b6q80OJ6J')
+  const cellFolder = DriveApp.getFolderById('17ShhYjfPkoereTw1sEaHD6B1eljLJ3gp')
+  let startIndex1 = Number(PropertiesService.getScriptProperties().getProperty('nextIndex1'));
+  let startIndex2 = Number(PropertiesService.getScriptProperties().getProperty('nextIndex2'));
+  let startIndex3 = Number(PropertiesService.getScriptProperties().getProperty('nextIndex3'));
+  let startIndex4 = Number(PropertiesService.getScriptProperties().getProperty('nextIndex4'));
+  let startTime = new Date(); // ①実行開始時点の日時
+  let currentTime = new Date(); // ②ループx周目時点の日時
+  let seconds = (currentTime - startTime)/1000; // 経過秒数を計算(①と②の差分)
+  console.log("startIndex1:",startIndex1,",startIndex2=",startIndex2);
+  let firstloop = true;
+
+  var sheet5 = s1.getSheetByName("入力例(保存用)");
+  sheet5.getRange(1,20,1,1).setValue("ImageRecognition Start");
+
+  sheet5.getRange(1,20,1,1).setValue("Start");
+
+
+  // deleteAllFilesInFolder(srcFolder);
+  // var img = getImage(id,token);
+  // srcFolder.createFile(img.getAs('image/png').setName(Number(new Date()) + '.png'));
+  var files_src = srcFolder.getFiles()
+
+  if (!startIndex1) startIndex1 = 0; // もしstartIndex1がnullの場合は0を代入
+  if (!startIndex2){
+    startIndex2 = 0; // startIndex2
+  }
+  if (!startIndex3) startIndex3 = 0; // もしstartIndex3がnullの場合は0を代入
+  if (!startIndex4) startIndex4 = 0; // もしstartIndex4がnullの場合は0を代入
+
+  while (files_src.hasNext()) {
+    var file_src = files_src.next(); // ファイルを取得
+    var str = extractDimensions(getSize(file_src))
+
+    num1 = Math.round((-8.2+80.59*11)*str.height/2012)
+    num2 = Math.round((1932.2-80.59*11)*str.height/2012)
+    sheet5.getRange(1,20,1,1).setValue("Trim Start"+String(num1)+String(num2)+String(0)+String(0));
+    console.log("Trim Start",num1,num2,0,0)
+    deleteAllFilesInFolder(destFolder);  
+    editImage(file_src, destFolder,num1,num2,0,0,1000); // 画像を編集して保存
+    sheet5.getRange(1,20,1,1).setValue("Trim End");
+    console.log("Trim End")
+
+    var files_dest = destFolder.getFiles()
+    while (files_dest.hasNext()) {
+      var file_dest = files_dest.next(); // ファイルを取得
+      console.log("Image Start")
+      sheet5.getRange(1,20,1,1).setValue("Image Start");
+      var PROMPT = `画像の内容に最も一致するものを選択し、「9-17時」または「None」のみを出力。①「9-17時」と書いてある場合:「9-17時」と出力。②「9-17時」と書いてない場合:「None」を出力。`
+      var text = start(file_dest,PROMPT)
+      console.log("Image End,text = ",text)
+      sheet5.getRange(1,20,1,1).setValue("Image End,text = "+String(text));
+
+      // 「9-17時」のシフト希望かどうかを判定
+      if(convertToHalfWidth(text).includes("9")){
+        console.log("9-17時")
+        for (i = startIndex1;i<21;i++){
+          var values = sheet1.getRange(2, 7, 30, 1).getValues();//9-17なら7,23-6なら8
+          var str = extractDimensions(getSize(file_src))
+          num1 = Math.round((-8.2+80.59*i)*str.height/2012)
+          num2 = Math.round((1932.2-80.59*i)*str.height/2012)
+          if (num1<0){
+            num1 = 0
+          }
+          if (num2<0){
+            num2 = 0
+          }
+          deleteAllFilesInFolder(destFolder);  
+          console.log("Trim Start",num1,num2,0,0)
+          editImage(file_src, destFolder,num1,num2,0,0,1000); // 画像を編集して保存
+          console.log("Trim End")
+          if(firstloop && startIndex2 !== 0){
+            console.log(firstloop,"firstloop 1")
+            var files_dest = destFolder.getFiles()
+            var text = "Any"
+            console.log("text input [Any]")
+          }
+          else{
+            console.log(firstloop,"firstloop 2")
+            var files_dest = destFolder.getFiles()
+            while (files_dest.hasNext()) {
+              var file_dest = files_dest.next(); // ファイルを取得
+              var PROMPT = `画像のボックスの中の内容について記号か文字があるかを判定し、"Any"または"None"のみを出力。文章は不要。
+                ①記号または文字がある場合:"Any"のみを出力
+                ②記号も文字もない場合:"None"のみを出力 
+                `
+              var text = start(file_dest,PROMPT)
+            }
+          }
+          
+          console.log("text",text)
+          if(!(text.includes("None")||text.includes("."))){
+            console.log("!None")
+            var files_dest = destFolder.getFiles()
+            while (files_dest.hasNext()) {
+              var file_dest = files_dest.next(); // ファイルを取得
+              str = extractDimensions(getSize(file_dest))
+              for(j = startIndex2; j < 7; j++){
+                deleteAllFilesInFolder(cellFolder);
+                var str = extractDimensions(getSize(file_dest))
+                var num3 = Math.round((-2.5+127.5*j)*str.width/892)
+                var num4 = Math.round((765-127.5*j)*str.width/892)
+                if(num3<0){
+                  num3 = 0;
+                }
+                if(num4<0){
+                  num4 = 0;
+                }
+                editImage(file_dest, cellFolder,0,0,num3,num4,1000); // 画像を編集して保存
+                console.log(num1,num2,num3,num4)
+                var files_cell = cellFolder.getFiles()
+                while (files_cell.hasNext()) {
+                  var file_cell = files_cell.next(); // ファイルを取得
+                  var PROMPT = `画像のボックスの中の内容について("None",".","〇","×","6-9","9-13","13-17","6-13","9-17","6-17","17-20","20-23","17-23","23-6","20-6","23-2","20-2")のいずれかの記号のみを出力。文章は不要。2つ以上の複数選択も["6-9","9-13"]のような形で可能。
+                      ①記号がない場合:"None"を出力 
+                      ②記号有りの場合:(".","〇","×","6-9","9-13","13-17","6-13","9-17","6-17","17-20","20-23","17-23","23-6","20-6","23-2","20-2")のうち最も近いものを出力
+                    `
+                  var text = start(file_cell,PROMPT)
+                  if(extractStrings(text)){
+                    var list = extractStrings(text);
+                    for(let k = 0; k < list.length; k++){
+                      var name = values[i];
+                      var today = new Date();
+                      let weekInt = today.getDay();
+                      let templist = [];
+                      templist.push(getShiftedMonth(today, - weekInt+1+j+7*n));
+                      templist.push(getShiftedDay(today, - weekInt+1+j+7*n));
+                      let temp = list[k].split("-");
+                      
+                      if(temp[0] == 'None'||temp[0] == "."){
+                        continue
+                      }else if(temp[0] == "〇"||temp[0] == "◯"||temp[0] == "o"){
+                        templist.push("〇");
+                      }else if(temp[0] == "×"||temp[0] == "x"){
+                        templist.push("×");
+                      }else{
+                        templist.push(temp[0]);
+                        templist.push(temp[1]);
+                      }
+
+                      console.log("Input:",name,templist)
+                      sheet5.getRange(1,20,1,1).setValue("Input:"+String(name)+String(templist));
+                      InputSpreadsheet(userId,userName,n,replyToken,j,templist,starttimelist,N_max_kibou,N_week_kibou,name,"(画像認識)")
+                    }
+                  }
+                }
+                currentTime = new Date(); // ②ループx周目時点の日時
+                seconds = (currentTime - startTime)/1000; // 経過秒数を計算(①と②の差分)
+                if(seconds > 260){
+                  // 280秒経過したら、スクリプトプロパティを設定し、トリガーをセットして、returnする
+                  PropertiesService.getScriptProperties().setProperty('nextIndex1', i);
+                  PropertiesService.getScriptProperties().setProperty('nextIndex2', j);
+                  setTrigger();
+                  console.log("set startIndex1:",i,", startIndex2:",j)
+                  sheet5.getRange(1,20,1,1).setValue("End");
+                  return;
+                }
+              }
+            }
+          }
+          if(i == 10){
+            i = 11
+          }
+          j = 0;
+          startIndex1 = 0;
+          firstloop = false;
+          currentTime = new Date(); // ②ループx周目時点の日時
+          seconds = (currentTime - startTime)/1000; // 経過秒数を計算(①と②の差分)
+          if(seconds > 260){
+            // 280秒経過したら、スクリプトプロパティを設定し、トリガーをセットして、returnする
+            PropertiesService.getScriptProperties().setProperty('nextIndex1', i);
+            PropertiesService.getScriptProperties().setProperty('nextIndex2', j);
+            setTrigger();
+            console.log("set startIndex1:",i,", startIndex2:",j)
+            sheet5.getRange(1,20,1,1).setValue("End");
+            return;
+          }
+        }
+        // 終わったらトリガーを削除
+        let triggers = ScriptApp.getScriptTriggers();
+        for(let trigger of triggers){
+          if(trigger.getHandlerFunction() == 'ImageRecognition'){
+            ScriptApp.deleteTrigger(trigger);
+          }
+        }
+        // 終わったらスクリプトプロパティを削除
+        PropertiesService.getScriptProperties().deleteProperty('nextIndex1');  
+        PropertiesService.getScriptProperties().deleteProperty('nextIndex2'); 
+        sheet5.getRange(1,20,1,1).setValue("Complete");
+      }
+      
+      // 「23-6時」のシフト希望かどうかを判定
+      else{
+        if(convertToHalfWidth(text).includes("23-6時")){
+          var values = sheet1.getRange(2, 8, 30, 1).getValues(); //9-17なら7,23-6なら8
+          console.log("23-6時")
+          for (i = startIndex3;i<21;i++){
+            deleteAllFilesInFolder(destFolder);
+            var str = extractDimensions(getSize(file_src))
+            num1 = Math.round((-8.2+80.59*i)*str.height/2012)
+            num2 = Math.round((1932.2-80.59*i)*str.height/2012)
+            if (num1<0){
+              num1 = 0
+            }
+            if (num2<0){
+              num2 = 0
+            }
+            console.log("Trim Start")
+            editImage(file_src, destFolder,num1,num2,0,0,1000); // 画像を編集して保存
+            console.log("Trim End")
+            
+            var files_dest = destFolder.getFiles()
+            while (files_dest.hasNext()) {
+              var file_dest = files_dest.next(); // ファイルを取得
+              var PROMPT = `画像のボックスの中の内容について記号か文字があるかを判定し、"Any"または"None"のみを出力。文章は不要。
+                ①記号または文字がある場合:"Any"のみを出力
+                ②記号も文字もない場合:"None"のみを出力 
+                `
+              var text = start(file_dest,PROMPT)
+            }
+            console.log("text",text)
+            if(!(text.includes("None")||text.includes("."))){
+              console.log("!None")
+              var files_dest = destFolder.getFiles()
+              while (files_dest.hasNext()) {
+                var file_dest = files_dest.next(); // ファイルを取得
+                str = extractDimensions(getSize(file_dest))
+                for(j = startIndex4; j < 7; j++){
+                  deleteAllFilesInFolder(cellFolder);
+                  var str = extractDimensions(getSize(file_dest))
+                  var num3 = Math.round((-2.5+127.5*j)*str.width/892)
+                  var num4 = Math.round((765-127.5*j)*str.width/892)
+                  if(num3<0){
+                    num3 = 0;
+                  }
+                  if(num4<0){
+                    num4 = 0;
+                  }
+                  editImage(file_dest, cellFolder,0,0,num3,num4,1000); // 画像を編集して保存
+                  console.log(num1,num2,num3,num4)
+                  var files_cell = cellFolder.getFiles()
+                  while (files_cell.hasNext()) {
+                    var file_cell = files_cell.next(); // ファイルを取得
+                    var PROMPT = `画像のボックスの中の内容について("None",".","〇","×","6-9","9-13","13-17","6-13","9-17","6-17","17-20","20-23","17-23","23-6","20-6","23-2","20-2")のいずれかの記号のみを出力。文章は不要。2つ以上の複数選択も["6-9","9-13"]のような形で可能。
+                        ①記号がない場合:"None"を出力 
+                        ②記号有りの場合:(".","〇","×","6-9","9-13","13-17","6-13","9-17","6-17","17-20","20-23","17-23","23-6","20-6","23-2","20-2")のうち最も近いものを出力
+                      `
+                    var text = start(file_cell,PROMPT)
+                    if(extractStrings(text)){
+                      var list = extractStrings(text);
+                      for(let k = 0; k < list.length; k++){
+                        var name = values[i];
+                        var today = new Date();
+                        let weekInt = today.getDay();
+                        let templist = [];
+                        templist.push(getShiftedMonth(today, - weekInt+1+j+7*n));
+                        templist.push(getShiftedDay(today, - weekInt+1+j+7*n));
+                        let temp = list[k].split("-");
+                        
+                        if(temp[0] == 'None'||temp[0] == "."){
+                          continue
+                        }else if(temp[0] == "〇"||temp[0] == "◯"||temp[0] == "o"){
+                          templist.push("〇");
+                        }else if(temp[0] == "×"||temp[0] == "x"){
+                          templist.push("×");
+                        }else{
+                          templist.push(temp[0]);
+                          templist.push(temp[1]);
+                        }
+
+                        console.log("Input:",name,templist)
+                        InputSpreadsheet(userId,userName,n,replyToken,j,templist,starttimelist,N_max_kibou,N_week_kibou,name,"(画像認識)")
+                      }
+                    }
+                  }
+                  currentTime = new Date(); // ②ループx周目時点の日時
+                  seconds = (currentTime - startTime)/1000; // 経過秒数を計算(①と②の差分)
+                  if(seconds > 260){
+                    // 280秒経過したら、スクリプトプロパティを設定し、トリガーをセットして、returnする
+                    PropertiesService.getScriptProperties().setProperty('nextIndex3', i);
+                    PropertiesService.getScriptProperties().setProperty('nextIndex4', j);
+                    setTrigger();
+                    return;
+                  }
+                }
+              }
+            }
+            if(i == 14){
+              i = 15
+            }
+            j = 0;
+            startIndex1 = 0;
+            currentTime = new Date(); // ②ループx周目時点の日時
+            seconds = (currentTime - startTime)/1000; // 経過秒数を計算(①と②の差分)
+            if(seconds > 260){
+              // 280秒経過したら、スクリプトプロパティを設定し、トリガーをセットして、returnする
+              PropertiesService.getScriptProperties().setProperty('nextIndex3', i);
+              PropertiesService.getScriptProperties().setProperty('nextIndex4', j);
+              setTrigger();
+              console.log("set startIndex3:",i,", startIndex4:",j)
+              return;
+            }
+          }
+          // 終わったらトリガーを削除
+          let triggers = ScriptApp.getScriptTriggers();
+          for(let trigger of triggers){
+            if(trigger.getHandlerFunction() == 'ImageRecognition'){
+              ScriptApp.deleteTrigger(trigger);
+            }
+          }
+          // 終わったらスクリプトプロパティを削除
+          PropertiesService.getScriptProperties().deleteProperty('nextIndex3');  
+          PropertiesService.getScriptProperties().deleteProperty('nextIndex4'); 
+        }
+      }
+    }
+  }
+  var payload = LINETextMake(replyToken,"画像入力が完了しました。")
+  return payload
+}

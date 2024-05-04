@@ -1,0 +1,470 @@
+function transpose(array) {
+  return array[0].map((_, colIndex) => array.map(row => row[colIndex]));
+}
+
+function removeTrailingWhitespace(array) {
+  var i = array.length - 1;
+  while (i >= 0 && array[i] === "") {
+    array.pop();
+    i--;
+  }
+  return array;
+}
+
+function shiftLeft(array) {
+  // 配列のコピーを作成
+  var temp = array.slice();
+  // 一番左の要素を取得し、配列から削除して末尾に追加する
+  var firstElement = temp.shift();
+  temp.push(firstElement);
+  return temp;
+}
+
+//2次元行列の指定された行を削除して左詰め。一番右は空白で埋める。
+function deleteColumn(matrix, columnIndex) {
+  for (var i = 0; i < matrix.length; i++) {
+    // 指定された列を削除
+    matrix[i].splice(columnIndex, 1);
+        
+    // 最後の列を空文字列で埋める
+    matrix[i].push("");
+  }
+  return matrix;
+}
+
+function shiftRight(array) {
+  // 配列のコピーを作成
+  var temp = array.slice();
+  // 一番右の要素を取得し、配列から削除して先頭に挿入する
+  var lastElement = temp.pop();
+  temp.unshift(lastElement);
+  return temp;
+}
+
+// 英数字を全角から半角に変換
+function convertToHalfWidth(text = "") {
+  var halfWidthText = "";
+  
+  for (var i = 0; i < text.length; i++) {
+    var charCode = text.charCodeAt(i);
+    var halfWidthCharCode = charCode;
+    
+    // 全角文字の範囲を判定して半角に変換
+    if (charCode >= 0xFF01 && charCode <= 0xFF5E) {
+      halfWidthCharCode = charCode - 0xFEE0;
+    } else if (charCode === 0x3000) { // 全角スペースを半角スペースに変換
+      halfWidthCharCode = 0x0020;
+    }
+    
+    // スペース以外の文字を追加
+    if (halfWidthCharCode !== 0x0020) {
+      // "x", "X", "✖", "☒" を "×" に変換
+      if (text[i] === "x" || text[i] === "X" || text[i] === "✖" || text[i] === "☒"|| text[i] === "☓" || text[i] === "✗" || text[i] === "✘") {
+        halfWidthText += "×";
+      } 
+      else if (text[i] === "o" || text[i] === "◦" || text[i] === "◎" || text[i] === "○"|| text[i] === "◯") {
+        halfWidthText += "〇";
+      } else {
+        halfWidthText += String.fromCharCode(halfWidthCharCode);
+      }
+    }
+  }
+  return halfWidthText;
+}
+
+
+function setTrigger() {
+  let triggers = ScriptApp.getScriptTriggers();
+  for(let trigger of triggers){
+    if(trigger.getHandlerFunction() == 'ImageRecognition'){
+      ScriptApp.deleteTrigger(trigger);
+    }
+  }
+
+  // 1分後にトリガーをセット(1分 = 60秒 = 1秒*60 = 1000ミリ秒 * 60)
+  ScriptApp.newTrigger('ImageRecognition').timeBased().after(1000*2).create();
+}
+
+function swapRowsWithSameElementInFirstColumn(matrix,nmax) {
+  // 左の列から右に1つずつ見ていく
+  for (var i = 0; i < matrix.length - 1; i++) {
+    // 同じ要素を含む行を探す
+    for (var j = 0; j < nmax; j++) {
+      for (var k = 0; k < nmax; k++) {
+        if (matrix[i][j] === matrix[i+1][k]) {
+            // 同じ要素を含む行が見つかった場合、その行と現在の行をスワップする
+            var temp = matrix[i+1][j];
+            matrix[i+1][j] = matrix[i+1][k];
+            matrix[i+1][k] = temp;
+            break;
+        }
+      }
+    }
+  }
+}
+
+function calculateWeekDifference(date1, date2) {
+  // 日付オブジェクトを取得
+  var startDate = new Date(date1);
+  var endDate = new Date(date2);
+
+  // 日付をミリ秒に変換
+  var millisecondsPerWeek = 1000 * 60 * 60 * 24 * 7;
+
+  // 2つの日付の差を計算し、週に変換
+  var differenceInMilliseconds = endDate - startDate;
+  var differenceInWeeks = Math.floor(differenceInMilliseconds / millisecondsPerWeek);
+
+  return differenceInWeeks;
+}
+
+
+
+function combinecells(sheet, startRow, startColumn, numRows, numColumns, i_date) {
+  var range = sheet.getRange(startRow, startColumn, numRows, numColumns); // 結合を行う範囲を指定してください
+
+  var values = range.getValues();
+  var numRows = values.length;
+  var numCols = values[0].length;
+
+  for (var i = 0; i < numRows; i++) {
+    for (var j = 0; j < numCols; j++) {
+      var currentValue = values[i][j];
+      if (currentValue !== "") { // 空のセルは無視します
+        // 右方向に隣接するセルを確認
+        var mergedCols = 0;
+        while (j + mergedCols + 1 < numCols && values[i][j + mergedCols + 1] === currentValue) {
+          mergedCols++;
+        }
+        // 隣接するセルがあれば結合
+        if (mergedCols > 0) {
+          sheet.getRange(i + 2+i_date*5, j + 2, 1, mergedCols + 1).merge();
+          sheet.getRange(i + 2+i_date*5, j + 2, 1, mergedCols + 1).setBorder(true, true, true, true, false, false);
+          // 結合されたセル分だけ移動
+          j += mergedCols;
+        }
+      }
+    }
+  }
+}
+
+function sheet3clear(sheet1,sheet3) {
+  sheet3.getRange(1, 1, 100, 100).breakApart();
+  sheet3.getRange(1, 1, 100, 100).clear();
+  sheet3.getRange(1, 1, 100, 100).setBorder(false, false, false, false, false, false);
+
+  // 指定した範囲の外側だけを枠線で囲みます。
+  for (var i = 0;i<7;i++){
+    var date = sheet1.getRange(2, 2, 1, 1).getValue().getDate();
+    date = Number(date)+i;
+    var month = sheet1.getRange(2, 2, 1, 1).getValue().toLocaleString('default', { month: 'short' });
+    date = String(month) + "/" + String(date);
+    sheet3.getRange(1+ 5*i, 1).setValue(date);
+    for (var j = 0; j < 24; j++) {
+      if (j+6<24){
+        sheet3.getRange(1+ 5*i, 2+j).setValue(j+6);
+      }
+      else{
+        sheet3.getRange(1+ 5*i, 2+j).setValue(j-18);
+      }
+    }
+    sheet3.getRange(1 + 5*i, 2, 1, 24).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(2+ 5*i, 2, 3, 24).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(1+ 5*i, 2+3, 1, 4).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(1+ 5*i, 2+11, 1, 3).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(1+ 5*i, 2+14, 1, 3).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(2+ 5*i, 2+3, 3, 4).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(2+ 5*i, 2+11, 3, 3).setBorder(true, true, true, true, false, false);
+    sheet3.getRange(2+ 5*i, 2+14, 3, 3).setBorder(true, true, true, true, false, false);
+  }
+}
+
+function deleteAllFilesInFolder(folder) {
+  var files = folder.getFiles();
+  
+  while (files.hasNext()) {
+    var file = files.next();
+    Drive.Files.remove(file.getId());
+  }
+}
+
+function imagerange(sheet, N_max_shift) {
+  //表のヘッダーとデータ範囲を取得 ※１
+  var header = sheet.getRange(1, 1, 1, 25).getDisplayValues();
+  var values = sheet.getRange(2, 1, N_max_shift*7+13, 25).getDisplayValues();
+
+  //データテーブルを作成
+  var table = Charts.newDataTable();
+
+  //ヘッダー行を入力
+  for(var i=0; i<header[0].length; i++) {
+    table.addColumn(Charts.ColumnType.STRING, header[0][i]);
+  }
+
+  //データ範囲を入力
+  for(var j=0; j<values.length; j++) {
+    table.addRow(values[j]);
+  }
+
+  //表グラフを作成＆画像化
+  const blob = Charts.newTableChart()
+    .setDataTable(table.build())
+    .setDimensions(1000, 1000)
+    .build()
+    .getBlob();
+
+  // PNGに変換
+  const pngBlob = blob.getAs('image/png');
+
+
+  //画像をシートに挿入
+  return pngBlob
+}
+
+function isJapaneseOnly(text) {
+  // 日本語のみを含む正規表現パターン
+  var japaneseOnlyRegex = /^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+$/;
+  return japaneseOnlyRegex.test(text);
+}
+
+
+function parseDelete(input = "メンバー削除,川渕,あ") {
+  let result = [];
+  // 入力文字列を':'で分割し、2つの部分に分ける
+  let parts_name = input.split(',');
+  if(parts_name){
+    if (parts_name[0] == "メンバー削除") {
+      for(let i = 1; i < parts_name.length; i++){
+        result.push(parts_name[i]); // ひらがな、カタカナ、漢字以外の文字が含まれる場合はfalseを返す
+      }
+    }
+  }
+  if(result[0]){
+    if(result[0] !== ""){
+      console.log(result)
+      return result;
+    }
+  }
+  console.log(false)
+  return false;
+}
+
+
+function parseInput(input = "4/8:×") {
+  let result = [];
+  // 入力文字列を':'で分割し、2つの部分に分ける
+  let parts_name = input.split(',');
+  if(parts_name){
+    if (parts_name.length > 2) {
+        return false; // 数字が2つでない場合はfalseを返す
+      }
+    else if(parts_name.length == 2){
+      if (!isJapaneseOnly(parts_name[0])){
+        return false; // ひらがな、カタカナ、漢字以外の文字が含まれる場合はfalseを返す
+      }
+      result.push(parts_name[0]); // フォーマットが正しくない場合はfalseを返す
+      input = parts_name[1];
+    }else{
+      input = parts_name[0];
+    }
+  }
+  // 入力文字列を':'で分割し、2つの部分に分ける
+  let parts = input.split(':');
+  if(!parts){
+    return false; // フォーマットが正しくない場合はfalseを返す
+  }
+  else{
+    if (parts.length !== 2) {
+      return false; // フォーマットが正しくない場合はfalseを返す
+    }
+  }
+
+  // 2つの部分を更に'/'と'～'で分割し、数字を取り出して配列に格納する
+  let regex = /(\d+)/g; // 数字を抽出する正規表現パターン
+  let frag = true;
+  for (let part of parts) {
+    let numbers = part.match(regex)
+    if(numbers){
+      if (numbers.length !== 2) {
+        return false; // 数字が2つでない場合はfalseを返す
+      }
+    }
+    else{
+      if(!frag && part == "×"){
+        result.push("×");
+        return result
+      }
+      return false
+    }
+    let firstnum = Number(numbers[0]); // 数字を変換
+    let secondnum = Number(numbers[1]); // 数字を変換
+    // 数字が0から23の整数でない場合はfalseを返す
+    if(frag){
+      if (!Number.isInteger(firstnum) || firstnum < 1 || firstnum > 12 ||
+        !Number.isInteger(secondnum) || secondnum < 1 || secondnum > 31) {
+        return false;
+      }
+    }
+    else{
+      if (!Number.isInteger(firstnum) || firstnum < 0 || firstnum > 23 ||
+        !Number.isInteger(secondnum) || secondnum < 0 || secondnum > 23) {
+        return false;
+      }
+    }
+    result.push(firstnum); // 数字を配列に格納する
+    result.push(secondnum); // 数字を配列に格納する
+    frag = false;
+  }
+  console.log(result);
+  return result; // 正しいフォーマットの場合は配列を返す
+}
+
+function parseTimeRanges(input = "月:4~13") {
+  // 曜日の対応表
+  const dayOfWeekMap = {
+    "月": 0,
+    "月曜": 0,
+    "火": 1,
+    "火曜": 1,
+    "水": 2,
+    "水曜": 2,
+    "木": 3,
+    "木曜": 3,
+    "金": 4,
+    "金曜": 4,
+    "土": 5,
+    "土曜": 5,
+    "日": 6,
+    "日曜": 6
+  };
+
+  // 入力文字列を':'で分割し、2つの部分に分ける
+  let parts = input.split(':');
+  let result = [];
+  
+  if(!parts){
+    return false; // フォーマットが正しくない場合はfalseを返す
+  }
+  else{
+    if (parts.length !== 2) {
+      return false; // フォーマットが正しくない場合はfalseを返す
+    }
+  }
+  // 曜日部分を取得し、曜日の番号に変換
+  let dayOfWeekString = parts[0];
+  if (!(dayOfWeekString in dayOfWeekMap)) {
+    return false; // 曜日が不正な場合はfalseを返す
+  }
+  let dayOfWeek = dayOfWeekMap[dayOfWeekString];
+  // 曜日の番号と時間帯を配列として返す
+  result.push(dayOfWeek);
+
+  // 時間帯部分を取得し、'~'で分割して時間帯を取得
+  let regex = /(\d+)/g; // 数字を抽出する正規表現パターン
+  let numbers = parts[1].match(regex)
+  if(numbers){
+    if (numbers.length !== 2) {
+      return false; // 数字が2つでない場合はfalseを返す
+    }
+  }
+  else{
+    if(parts[1] == "×"){
+      result.push("×");
+      console.log(result)
+      return result
+    }
+    return false
+  }
+  let firstnum = Number(numbers[0]); // 数字を変換
+  let secondnum = Number(numbers[1]); // 数字を変換
+  if (!Number.isInteger(firstnum) || firstnum < 0 || firstnum > 23 ||
+        !Number.isInteger(secondnum) || secondnum < 0 || secondnum > 23) {
+        return false;
+      }
+  
+
+
+  result.push(firstnum);
+  result.push(secondnum);
+  console.log(result)
+  return result;
+}
+
+function parseTime(userMessage = "時間帯登録:17~23,20~23,×") {
+  let result = [];
+
+  // 入力文字列を':'で分割し、2つの部分に分ける
+  let parts = userMessage.split(':');
+  if(!parts){
+    return false; // フォーマットが正しくない場合はfalseを返す
+  }
+  else{
+    if (parts.length !== 2) {
+      return false; // フォーマットが正しくない場合はfalseを返す
+    }
+  }
+  if(parts[0] !== "時間帯登録"){
+    return false; // フォーマットが正しくない場合はfalseを返す
+  }
+
+  // 入力文字列を','で分割
+  let KibouTime = parts[1].split(',');
+  if(!KibouTime){
+    return false; // フォーマットが正しくない場合はfalseを返す
+  }
+  else{
+    var len = KibouTime.length
+    if (!(1 <= len <= 3)) {
+      return "[時間帯登録:17~23,20~23,×]のように登録できる希望は[×]を含め３つまで"; 
+    }
+  }
+
+  let regex = /(\d+)/g; // 数字を抽出する正規表現パターン
+  for (var i = 0; i < len; i++){
+    // 時間帯部分を取得し、'~'で分割して時間帯を取得
+    let numbers = KibouTime[i].match(regex)
+    if(numbers){
+      if (numbers.length !== 2) {
+        return false; // 数字が2つでない場合はfalseを返す
+      }
+    }
+    else{
+      if(KibouTime[i] == "×"){
+        result.push("×");
+        continue
+      }
+      return false
+    }
+    let firstnum = Number(numbers[0]); // 数字を変換
+    let secondnum = Number(numbers[1]); // 数字を変換
+    if (!Number.isInteger(firstnum) || firstnum < 0 || firstnum > 23 ||
+          !Number.isInteger(secondnum) || secondnum < 0 || secondnum > 23||firstnum>=secondnum) {
+          return false;
+        }
+    result.push(KibouTime[i]);
+  }
+
+  console.log(result)
+  return result;
+}
+
+function extractDateAndMonth(dateString) {
+  var dateObject = new Date(dateString);
+  
+  // 月の取得
+  var month = dateObject.getMonth() + 1; // 月は0から始まるため、1を加える
+  if (month < 10) {
+    month = "0" + month; // 一桁の場合は先頭に0を追加
+  }
+  
+  // 日付の取得
+  var date = dateObject.getDate();
+  if (date < 10) {
+    date = "0" + date; // 一桁の場合は先頭に0を追加
+  }
+  
+  // 日付と月の文字列を作成
+  var dateAndMonth = month + "/" + date;
+  
+  return dateAndMonth;
+}

@@ -1,0 +1,36 @@
+function writeToSheet_(destFolder, fileName, values) {
+  const fileList = destFolder.getFilesByName(fileName)
+  let ssFile = null
+  if (fileList.hasNext()) {
+    ssFile = SpreadsheetApp.openById(fileList.next().getId())
+  } else {
+    ssFile = SpreadsheetApp.create(fileName)
+    DriveApp.getFileById(ssFile.getId()).moveTo(destFolder)
+  }
+  ssFile.getActiveSheet().getRange(1, 1, values.length, values[0].length).setValues(values)
+}
+
+function scan_(apiKey, destFolder, file,PROMPT) {
+  const ssFileName = file.getName().split('.').slice(0, -1).join('.')
+  console.log(file.getName())
+  file.setDescription('scaning...')
+  var text = ScanImageWithGemini.scan(apiKey, file.getId(),PROMPT)
+  return text
+}
+
+
+function start(file,PROMPT) {
+  const apiKey = 'AIzaSyAkna7Zf427zF1h7jyChO5jp4ml6wtJ8xI'
+  const destFolder = DriveApp.getFolderById('1EWGqOxfVg0sJfu1ADIa_drdVQVU7fkcw')
+  try {
+    var text = scan_(apiKey, destFolder, file,PROMPT)
+  } catch(error) {
+    console.log("error")
+  }
+  return text
+}
+
+var PROMPT0 = `画像のボックスの中の内容について("None","o","x","9-13","9-17")のいずれかの記号のみを出力
+①記号がない場合:"None"を出力 
+②記号有りの場合:("o","x","9-13","9-17")のうち最も近いものを出力
+`

@@ -1,0 +1,143 @@
+function doPost(e) {
+  //LINE Messaging APIのチャネルアクセストークンを設定
+  let token = "n/WESOKOJOAvZafJtztVQe4JTlJ7JBQOqtWkg8QG/pd9GVQQB9TxNZGcqcd50PJaTqN17ItIM+s3UKqL4HoaWTWDy57Qruyfz1edlbaRRYHpk1U4go6c17L3NcBP2sdNr4O9wp+Jkf3Yx42MFKvHxgdB04t89/1O/w1cDnyilFU=";
+  // WebHookで取得したJSONデータをオブジェクト化し、取得
+  let eventData = JSON.parse(e.postData.contents).events[0];
+  // //取得したデータから、応答用のトークンを取得
+  var replyToken = eventData.replyToken;
+  var starttimelist = [6,9,13,17,20,23]; //シフトの始業時間のリスト
+  var N_max_shift = 3 // 1つのシフトに入れる人数の上限
+  var N_min_shift = 2 // 1つのシフトに入れる人数の下限
+  var N_max_kibou = 1 // 希望表の希望の最大値
+  var N_week_shift = 2
+  var N_week_kibou = 5
+
+  //取得したデータから、ユーザーIDを取得
+  var userId = eventData.source.userId;
+  var userName = getUserName(userId,token);
+
+  // var userId = "Ue131547efbe0eff33303465451f24244"
+  // var userName = "川渕悟郎"
+  // var replyToken = ""
+  // var userMessage = "川,4/8:×"
+
+  //取得したデータから、ユーザーが投稿したメッセージを取得
+  if(eventData.message.type == 'text'){
+    var userMessage = convertToHalfWidth(eventData.message.text);
+  }
+  else{
+    var userMessage = ""
+  }
+  // 応答メッセージ用のAPI URLを定義
+  let url = 'https://api.line.me/v2/bot/message/reply';
+  var today = new Date();
+  let weekInt = today.getDay();
+
+
+
+  //main処理
+  var payload = LINETextMake(replyToken,"その命令しらないよ")//"その命令しらないよ"
+
+  for (var n = 0;n<N_week_shift + 1;n++){
+    if (userMessage == "シフト作成"+String(n)+"週間後") {
+      //シフト作成
+      var payload = LINEShiftMake(replyToken,n,starttimelist, N_max_shift, N_min_shift, N_max_kibou)
+    }
+  }
+
+  if(convertToHalfWidth(userMessage) == "シフト確認"){
+    var payload = LINEShiftCheck(replyToken)
+  }
+
+  if(convertToHalfWidth(userMessage) == "シフト希望確認"){
+    var payload = LINEShiftkibouCheck(userId,userName,replyToken,starttimelist,today,weekInt,N_week_shift,N_week_kibou)
+  }
+  
+  for (var n = 0;n<N_week_kibou+1;n++){
+    if (convertToHalfWidth(userMessage) == "シフト"+String(n)+"週間後") {
+      // シフトn週間後の場合の応答を定義
+      var columns = LINEShiftiInput(today,weekInt,n,starttimelist, userId, userName,N_week_kibou)
+      payload.messages = [{
+        "type": "template",
+        "altText": "this is a carousel template",
+        "template": {
+          "type": "carousel",
+          "columns": columns,
+          "imageAspectRatio": "rectangle",
+          "imageSize": "cover"
+        }
+      }];
+    }
+  }
+
+  //固定シフトの入力フォームを表示
+  if (convertToHalfWidth(userMessage) == "固定シフト") {
+    // シフトn週間後の場合の応答を定義
+    var columns = LINEKoteiShiftiInput(userId, userName,N_week_kibou)
+    payload.messages = [{
+      "type": "template",
+      "altText": "this is a carousel template",
+      "template": {
+        "type": "carousel",
+        "columns": columns,
+        "imageAspectRatio": "rectangle",
+        "imageSize": "cover"
+      }
+    }];
+  }
+
+  //固定シフト登録の処理
+  var InputTime = parseTimeRanges(convertToHalfWidth(userMessage));
+  if (InputTime) {
+    payload = InputKoteiShiftSpreadsheet(userId,userName,replyToken,InputTime,starttimelist,N_max_kibou)
+  }
+
+  //シフト希望の処理
+  var InputArray = parseInput(convertToHalfWidth(userMessage))
+  console.log(InputArray)
+  if (InputArray) {
+    var name = ""
+    if(isJapaneseOnly(InputArray[0])){
+      name = InputArray[0]
+      InputArray.shift();
+    }
+    for (var n = 0; n < N_week_kibou+1; n++){
+      if (InputArray[0] == String(getShiftedMonth(today, - weekInt+1+7*n))){
+        for(var i_date = 0; i_date < 7; i_date++){
+          if(InputArray[1] == String(getShiftedDay(today, - weekInt+1+7*n + i_date))){
+            payload = InputSpreadsheet(userId,userName,n,replyToken,i_date,InputArray,starttimelist,N_max_kibou,N_week_kibou,name,"(LINE)")
+          }
+        }
+      }
+    }
+  }
+
+  var InputDelete = parseDelete(convertToHalfWidth(userMessage));
+  if (InputDelete) {
+    var payload = DeleteName(replyToken,InputDelete,N_week_kibou);
+  }
+
+  if (userMessage == "ヘルプ") {
+    var payload = LINETextMake(replyToken,
+      "[固定シフト]:固定シフトをあらかじめ登録することで毎週シフトを入力する必要がなくなる\n[時間帯登録:9~13,13~17,×]:シフト入力の選択ボタンを作成\n[シフト作成〇週間後]:〇週間後の希望表に従ってシフトを作成"
+      )
+  }
+
+  // 時間帯登録の処理
+  var InputTimeArray = parseTime(convertToHalfWidth(userMessage));
+  if (InputTimeArray) {
+    payload = InputTimeSpreadsheet(userId,userName,replyToken,InputTimeArray);
+  }
+
+  if(eventData.message.type == 'image') {
+    ImageRecognition(eventData.message.id,token,userId,userName,replyToken,starttimelist,N_max_kibou,N_week_kibou)
+    payload = LINETextMake(replyToken,'image')
+  }
+  LINEOutput(token,url,payload)
+}
+
+function trigger() {
+  N_week_shift = 5
+  SheetUpdate(N_week_shift);
+  LINEShiftMake("replyToken",2,[6,9,13,17,20,23], 3, 2, 6)
+}

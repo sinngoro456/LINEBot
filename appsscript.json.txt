@@ -1,0 +1,59 @@
+{
+  "timeZone": "Etc/GMT-9",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Drive",
+        "serviceId": "drive",
+        "version": "v2"
+      },
+      {
+        "userSymbol": "Slides",
+        "serviceId": "slides",
+        "version": "v1"
+      }
+    ],
+    "libraries": [
+      {
+        "userSymbol": "ImgApp",
+        "libraryId": "1T03nYHRho6XMWYcaumClcWr6ble65mAT8OLJqRFJ5lukPVogAN2NDl-y",
+        "version": "10"
+      },
+      {
+        "userSymbol": "ScanImageWithGemini",
+        "version": "0",
+        "libraryId": "1mBcOpO92WcHRk7ZyhCb7HMuvefoEN5pNi5_XaqVffKNOLhD0KnzrjPgr",
+        "developmentMode": true
+      },
+      {
+        "userSymbol": "LINEWORKS",
+        "version": "68",
+        "libraryId": "1aLcCr3CWqfenPMyM0_FWIDUgRcTxsit9bO6BTx61NCXrCtkY2zbHBlod"
+      }
+    ]
+  },
+  "webapp": {
+    "executeAs": "USER_DEPLOYING",
+    "access": "ANYONE_ANONYMOUS"
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/spreadsheets.currentonly",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive.install",
+    "https://www.googleapis.com/auth/drive.appdata",
+    "https://www.googleapis.com/auth/drive.appfolder",
+    "https://www.googleapis.com/auth/presentations",
+    "https://www.googleapis.com/auth/script.scriptapp"
+  ],
+  "executionApi": {
+    "access": "ANYONE"
+  }
+}

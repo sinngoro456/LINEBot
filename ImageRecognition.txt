@@ -1,0 +1,65 @@
+function extractDimensions(output) {
+  const width = parseFloat(output.width);
+  const height = parseFloat(output.height);
+  return { width, height };
+}
+
+function getImage(id,token) {
+  //画像取得用エンドポイント
+  var url = 'https://api-data.line.me/v2/bot/message/' + id + '/content';
+  var data = UrlFetchApp.fetch(url,{
+    'headers': {
+      'Authorization' :  'Bearer ' + token,
+    },
+    'method': 'get'
+  });
+  //ファイル名を被らせないように、今日のDateのミリ秒をファイル名にしています
+  var img = data.getBlob();
+  // var img = data.getBlob().getAs('image/png').setName(Number(new Date()) + '.png');
+  return img;
+}
+
+function editImage(file,destFolder,t,b,l,r,w) {
+  const imageBlob = file.getBlob();
+ 
+  const object = {
+    blob: imageBlob,
+    unit: "pixel",
+    crop: { t: t, b: b, l: l, r: r },
+    outputWidth: w,
+  };
+  for(var i = 0; i< 5;i++){
+    try{
+      //ImgAppを使用し、上:200px、下:100px、左:400px、右:300pxをトリミング。幅を500pxに設定。
+      var blob = ImgApp.editImage(object);
+    }catch (e) {
+      console.log("例外発生")
+    }
+  }
+  // 新しく作成したファイルをフォルダに保存
+  destFolder.createFile(blob.setName("trim_"+String(t)+"_"+String(b)+"_"+String(l)+"_"+String(r)+"_"+String(w)));
+}
+
+function getSize(file) {
+  const imageBlob = file.getBlob();
+ 
+  // getSizeでサイズを取得
+  const res = ImgApp.getSize(imageBlob);
+  return res
+}
+
+function trim_line(file,destFolder) {
+  str = extractDimensions(getSize(file))
+  for (let i = 0;i<21;i++){
+    num1 = Math.round((-8.2+80.59*i)*str.height/2012)
+    num2 = Math.round((1932.2-80.59*i)*str.height/2012)
+    if (num1<0){
+      num1 = 0
+    }
+    if (num2<0){
+      num2 = 0
+    }
+
+    editImage(file, destFolder,num1,num2,0,0,1000); // 画像を編集して保存
+  }
+}
