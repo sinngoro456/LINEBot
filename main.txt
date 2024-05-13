@@ -1,6 +1,6 @@
 function doPost(e) {
   //LINE Messaging APIのチャネルアクセストークンを設定
-  let token = "n/WESOKOJOAvZafJtztVQe4JTlJ7JBQOqtWkg8QG/pd9GVQQB9TxNZGcqcd50PJaTqN17ItIM+s3UKqL4HoaWTWDy57Qruyfz1edlbaRRYHpk1U4go6c17L3NcBP2sdNr4O9wp+Jkf3Yx42MFKvHxgdB04t89/1O/w1cDnyilFU=";
+  let token = "LINEのトーク";
   // WebHookで取得したJSONデータをオブジェクト化し、取得
   let eventData = JSON.parse(e.postData.contents).events[0];
   // //取得したデータから、応答用のトークンを取得
@@ -16,11 +16,6 @@ function doPost(e) {
   var userId = eventData.source.userId;
   var userName = getUserName(userId,token);
 
-  // var userId = "Ue131547efbe0eff33303465451f24244"
-  // var userName = "川渕悟郎"
-  // var replyToken = ""
-  // var userMessage = "川,4/8:×"
-
   //取得したデータから、ユーザーが投稿したメッセージを取得
   if(eventData.message.type == 'text'){
     var userMessage = convertToHalfWidth(eventData.message.text);
@@ -32,8 +27,6 @@ function doPost(e) {
   let url = 'https://api.line.me/v2/bot/message/reply';
   var today = new Date();
   let weekInt = today.getDay();
-
-
 
   //main処理
   var payload = LINETextMake(replyToken,"その命令しらないよ")//"その命令しらないよ"
